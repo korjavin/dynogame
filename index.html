@@ -98,6 +98,37 @@
         let particles = [];
         const PARTICLE_COUNT = 30;
 
+        // --- Background Elements for Game Over Screen ---
+        let backgroundElements = [];
+        const BUILDING_COUNT = 5;
+        const TREE_COUNT = 3;
+        const CACTI_COUNT = 4;
+        
+        // Element types with their properties
+        const elementTypes = {
+            building: {
+                minWidth: 40,
+                maxWidth: 100,
+                minHeight: 80,
+                maxHeight: 200,
+                draw: drawBuilding
+            },
+            tree: {
+                minWidth: 30,
+                maxWidth: 50,
+                minHeight: 70,
+                maxHeight: 120,
+                draw: drawTree
+            },
+            cactus: {
+                minWidth: 20,
+                maxWidth: 30,
+                minHeight: 40,
+                maxHeight: 80,
+                draw: drawCactus
+            }
+        };
+
         function createExplosion(x, y) {
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 particles.push({
@@ -304,6 +335,141 @@
             missile: { width: 80, height: 30, draw: drawMissile }
         };
 
+        // Background element drawing functions
+        function drawBuilding(x, y, width, height) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Building body
+            const buildingColors = ['#6c757d', '#495057', '#343a40', '#212529'];
+            ctx.fillStyle = buildingColors[Math.floor(Math.random() * buildingColors.length)];
+            ctx.fillRect(0, 0, width, height);
+            
+            // Windows
+            ctx.fillStyle = 'rgba(255, 255, 100, 0.8)';
+            const windowSize = width / 10;
+            const windowSpacing = windowSize * 1.5;
+            const windowRows = Math.floor(height / windowSpacing);
+            const windowCols = Math.floor(width / windowSpacing);
+            
+            for (let row = 0; row < windowRows; row++) {
+                for (let col = 0; col < windowCols; col++) {
+                    // Random chance for window to be lit or dark
+                    if (Math.random() > 0.4) {
+                        ctx.fillRect(
+                            col * windowSpacing + windowSize/2,
+                            row * windowSpacing + windowSize/2,
+                            windowSize,
+                            windowSize
+                        );
+                    }
+                }
+            }
+            
+            ctx.restore();
+        }
+        
+        function drawTree(x, y, width, height) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Tree trunk
+            ctx.fillStyle = '#8B4513'; // Brown
+            const trunkWidth = width * 0.2;
+            const trunkHeight = height * 0.3;
+            ctx.fillRect(
+                width/2 - trunkWidth/2,
+                height - trunkHeight,
+                trunkWidth,
+                trunkHeight
+            );
+            
+            // Tree foliage (multiple layers of circles for a bushy look)
+            ctx.fillStyle = '#2e7d32'; // Dark green
+            const foliageSize = width * 0.8;
+            
+            // Draw main foliage body (3 overlapping circles)
+            for (let i = 0; i < 3; i++) {
+                const offsetX = (i - 1) * (width * 0.2);
+                const offsetY = (i % 2) * (height * 0.1);
+                const size = foliageSize - (i * width * 0.1);
+                
+                ctx.beginPath();
+                ctx.arc(
+                    width/2 + offsetX,
+                    height - trunkHeight - size/2 - offsetY,
+                    size/2,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+            }
+            
+            ctx.restore();
+        }
+        
+        function drawCactus(x, y, width, height) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Main cactus body
+            ctx.fillStyle = '#2e7d32'; // Dark green
+            const bodyWidth = width * 0.4;
+            
+            // Main stem
+            ctx.fillRect(
+                width/2 - bodyWidth/2,
+                0,
+                bodyWidth,
+                height
+            );
+            
+            // Arms (50% chance for left, right, or both arms)
+            const hasLeftArm = Math.random() > 0.5;
+            const hasRightArm = Math.random() > 0.5;
+            const armHeight = height * 0.3;
+            const armWidth = width * 0.6;
+            const armY = height * 0.2 + (Math.random() * height * 0.3);
+            
+            if (hasLeftArm) {
+                // Left arm
+                ctx.fillRect(
+                    width/2 - bodyWidth/2 - armWidth + bodyWidth/2,
+                    armY,
+                    armWidth,
+                    bodyWidth
+                );
+                
+                // Left arm upward part
+                ctx.fillRect(
+                    width/2 - bodyWidth/2 - armWidth + bodyWidth/2,
+                    armY - armHeight + bodyWidth,
+                    bodyWidth,
+                    armHeight
+                );
+            }
+            
+            if (hasRightArm) {
+                // Right arm
+                ctx.fillRect(
+                    width/2 + bodyWidth/2,
+                    armY,
+                    armWidth - bodyWidth/2,
+                    bodyWidth
+                );
+                
+                // Right arm upward part
+                ctx.fillRect(
+                    width/2 + bodyWidth/2 + armWidth - bodyWidth/2 - bodyWidth,
+                    armY - armHeight + bodyWidth,
+                    bodyWidth,
+                    armHeight
+                );
+            }
+            
+            ctx.restore();
+        }
+        
         function drawMissile(x, y, width, height) {
             ctx.save();
             ctx.translate(x, y);
@@ -335,6 +501,74 @@
             ctx.fill();
             
             ctx.restore();
+        }
+
+        // Background element generation functions
+        function generateBackgroundElements() {
+            backgroundElements = [];
+            
+            // Generate buildings
+            for (let i = 0; i < BUILDING_COUNT; i++) {
+                const type = elementTypes.building;
+                const width = type.minWidth + Math.random() * (type.maxWidth - type.minWidth);
+                const height = type.minHeight + Math.random() * (type.maxHeight - type.minHeight);
+                const x = Math.random() * (canvas.width - width);
+                const y = GROUND_HEIGHT - height;
+                
+                backgroundElements.push({
+                    type: 'building',
+                    x: x,
+                    y: y,
+                    width: width,
+                    height: height,
+                    draw: type.draw
+                });
+            }
+            
+            // Generate trees
+            for (let i = 0; i < TREE_COUNT; i++) {
+                const type = elementTypes.tree;
+                const width = type.minWidth + Math.random() * (type.maxWidth - type.minWidth);
+                const height = type.minHeight + Math.random() * (type.maxHeight - type.minHeight);
+                const x = Math.random() * (canvas.width - width);
+                const y = GROUND_HEIGHT - height;
+                
+                backgroundElements.push({
+                    type: 'tree',
+                    x: x,
+                    y: y,
+                    width: width,
+                    height: height,
+                    draw: type.draw
+                });
+            }
+            
+            // Generate cacti
+            for (let i = 0; i < CACTI_COUNT; i++) {
+                const type = elementTypes.cactus;
+                const width = type.minWidth + Math.random() * (type.maxWidth - type.minWidth);
+                const height = type.minHeight + Math.random() * (type.maxHeight - type.minHeight);
+                const x = Math.random() * (canvas.width - width);
+                const y = GROUND_HEIGHT - height;
+                
+                backgroundElements.push({
+                    type: 'cactus',
+                    x: x,
+                    y: y,
+                    width: width,
+                    height: height,
+                    draw: type.draw
+                });
+            }
+            
+            // Sort by x position so elements render in proper order (back to front)
+            backgroundElements.sort((a, b) => a.x - b.x);
+        }
+        
+        function drawBackgroundElements() {
+            backgroundElements.forEach(element => {
+                element.draw(element.x, element.y, element.width, element.height);
+            });
         }
 
         function spawnObstacle() {
@@ -433,6 +667,8 @@
                 updateObstacles();
                 player.update();
             } else {
+                // Draw background elements only when game is over
+                drawBackgroundElements();
                 obstacles.forEach(obs => obs.draw(obs.x, obs.y, obs.width, obs.height));
                 player.draw();
             }
@@ -445,6 +681,7 @@
             isGameOver = false;
             player.crashed = false;
             particles = [];
+            backgroundElements = []; // Clear background elements when starting new game
             score = 0;
             gameSpeed = 5; // Speed resets on start
             obstacles = [];
@@ -459,6 +696,7 @@
 
         function gameOver() {
             isGameOver = true;
+            generateBackgroundElements(); // Generate background elements when game ends
             infoOverlay.querySelector('h1').textContent = 'GAME OVER!';
             infoOverlay.querySelector('p').textContent = `Your score: ${score}. Tap to restart.`;
             infoOverlay.style.opacity = '1';
