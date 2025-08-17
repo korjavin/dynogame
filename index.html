@@ -137,8 +137,10 @@
             y: GROUND_HEIGHT,
             width: 50,
             height: 80,
+            originalHeight: 80, // Store original height
             velocityY: 0,
             isJumping: false,
+            isDucking: false,  // Add ducking state
             crashed: false,
             draw() {
                 if (this.crashed) return;
@@ -146,44 +148,90 @@
                 ctx.save();
                 ctx.translate(this.x + this.width / 2, this.y);
 
-                // Cape
-                ctx.fillStyle = '#e63946';
-                ctx.beginPath();
-                ctx.moveTo(0, -this.height * 0.8);
-                ctx.lineTo(-30, -this.height * 0.7);
-                ctx.lineTo(0, -this.height * 0.2);
-                ctx.closePath();
-                ctx.fill();
+                if (this.isDucking) {
+                    // Ducking appearance - compressed and wider
+                    // Cape (shorter and more horizontal)
+                    ctx.fillStyle = '#e63946';
+                    ctx.beginPath();
+                    ctx.moveTo(0, -this.height * 0.9);
+                    ctx.lineTo(-35, -this.height * 0.8);
+                    ctx.lineTo(0, -this.height * 0.3);
+                    ctx.closePath();
+                    ctx.fill();
 
-                // Body
-                ctx.fillStyle = '#f1c27d'; // Skin tone
-                ctx.beginPath();
-                ctx.arc(0, -this.height / 2, this.width / 2, 0, Math.PI * 2);
-                ctx.fill();
+                    // Body (compressed ellipse)
+                    ctx.fillStyle = '#f1c27d'; // Skin tone
+                    ctx.save();
+                    ctx.scale(1.3, 0.7); // Make wider and shorter
+                    ctx.beginPath();
+                    ctx.arc(0, -this.height / 2, this.width / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
 
-                // Face
-                ctx.fillStyle = 'black';
-                ctx.beginPath();
-                ctx.arc(-10, -this.height / 2, 4, 0, Math.PI * 2); // Left eye
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(10, -this.height / 2, 4, 0, Math.PI * 2); // Right eye
-                ctx.fill();
-                ctx.strokeStyle = 'black';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.arc(0, -this.height / 2 + 12, 10, 0.2 * Math.PI, 0.8 * Math.PI);
-                ctx.stroke();
-                
-                // Underpants
-                ctx.fillStyle = 'white';
-                ctx.beginPath();
-                ctx.moveTo(-this.width / 2, -this.height * 0.4);
-                ctx.lineTo(this.width / 2, -this.height * 0.4);
-                ctx.lineTo(this.width / 2 * 0.5, -this.height * 0.1);
-                ctx.lineTo(-this.width / 2 * 0.5, -this.height * 0.1);
-                ctx.closePath();
-                ctx.fill();
+                    // Face (adjusted for ducking)
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(-12, -this.height / 2, 3, 0, Math.PI * 2); // Left eye (smaller)
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(12, -this.height / 2, 3, 0, Math.PI * 2); // Right eye (smaller)
+                    ctx.fill();
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.arc(0, -this.height / 2 + 8, 8, 0.2 * Math.PI, 0.8 * Math.PI);
+                    ctx.stroke();
+                    
+                    // Underpants (adjusted for ducking)
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.moveTo(-this.width / 2 * 1.2, -this.height * 0.5);
+                    ctx.lineTo(this.width / 2 * 1.2, -this.height * 0.5);
+                    ctx.lineTo(this.width / 2 * 0.7, -this.height * 0.1);
+                    ctx.lineTo(-this.width / 2 * 0.7, -this.height * 0.1);
+                    ctx.closePath();
+                    ctx.fill();
+                } else {
+                    // Normal standing appearance
+                    // Cape
+                    ctx.fillStyle = '#e63946';
+                    ctx.beginPath();
+                    ctx.moveTo(0, -this.height * 0.8);
+                    ctx.lineTo(-30, -this.height * 0.7);
+                    ctx.lineTo(0, -this.height * 0.2);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Body
+                    ctx.fillStyle = '#f1c27d'; // Skin tone
+                    ctx.beginPath();
+                    ctx.arc(0, -this.height / 2, this.width / 2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Face
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(-10, -this.height / 2, 4, 0, Math.PI * 2); // Left eye
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(10, -this.height / 2, 4, 0, Math.PI * 2); // Right eye
+                    ctx.fill();
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(0, -this.height / 2 + 12, 10, 0.2 * Math.PI, 0.8 * Math.PI);
+                    ctx.stroke();
+                    
+                    // Underpants
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.moveTo(-this.width / 2, -this.height * 0.4);
+                    ctx.lineTo(this.width / 2, -this.height * 0.4);
+                    ctx.lineTo(this.width / 2 * 0.5, -this.height * 0.1);
+                    ctx.lineTo(-this.width / 2 * 0.5, -this.height * 0.1);
+                    ctx.closePath();
+                    ctx.fill();
+                }
 
                 ctx.restore();
             },
@@ -204,9 +252,24 @@
                 this.draw();
             },
             jump() {
-                if (!this.isJumping && !isGameOver) {
+                if (!this.isJumping && !this.isDucking && !isGameOver) {
                     this.isJumping = true;
                     this.velocityY = -20;
+                }
+            },
+            duck() {
+                if (!this.isJumping && !isGameOver) {
+                    this.isDucking = true;
+                    this.height = this.originalHeight / 2;
+                    // Keep the character's bottom position on the same y-axis
+                    this.y = GROUND_HEIGHT;
+                }
+            },
+            unduck() {
+                if (this.isDucking && !isGameOver) {
+                    this.isDucking = false;
+                    this.height = this.originalHeight;
+                    this.y = GROUND_HEIGHT;
                 }
             }
         };
@@ -363,6 +426,8 @@
             obstacles = [];
             player.y = GROUND_HEIGHT;
             player.isJumping = false;
+            player.isDucking = false; // Reset ducking state
+            player.height = player.originalHeight; // Reset height
             scoreElement.textContent = `SCORE: 0`;
             infoOverlay.style.opacity = '0';
             infoOverlay.style.pointerEvents = 'none';
@@ -386,15 +451,56 @@
         }
 
         window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') {
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
                 e.preventDefault();
                 handleInput();
+            } else if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                if (!isGameOver) {
+                    player.duck();
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                if (!isGameOver) {
+                    player.unduck();
+                }
             }
         });
         
+        // Touch event handling for mobile gestures
+        let touchStartY = 0;
+        let touchStartTime = 0;
+
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            handleInput();
+            touchStartY = e.touches[0].clientY;
+            touchStartTime = Date.now();
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const touchEndY = e.changedTouches[0].clientY;
+            const touchEndTime = Date.now();
+            const touchDuration = touchEndTime - touchStartTime;
+            const touchDistance = touchEndY - touchStartY;
+            
+            // Detect swipe down gesture (swipe down > 30px within 300ms)
+            if (touchDistance > 30 && touchDuration < 300 && !isGameOver) {
+                player.duck();
+                // Auto-unduck after a short delay for mobile
+                setTimeout(() => {
+                    if (!isGameOver) {
+                        player.unduck();
+                    }
+                }, 200);
+            } else if (Math.abs(touchDistance) < 30) {
+                // Regular tap - jump or start game
+                handleInput();
+            }
         });
         infoOverlay.addEventListener('click', handleInput);
 
