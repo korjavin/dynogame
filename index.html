@@ -98,11 +98,8 @@
         let particles = [];
         const PARTICLE_COUNT = 30;
 
-        // --- Background Elements for Game Over Screen ---
+        // --- Background Elements for Active Gameplay ---
         let backgroundElements = [];
-        const BUILDING_COUNT = 5;
-        const TREE_COUNT = 3;
-        const CACTI_COUNT = 4;
         
         // Element types with their properties
         const elementTypes = {
@@ -503,71 +500,193 @@
             ctx.restore();
         }
 
-        // Background element generation functions
-        function generateBackgroundElements() {
+        // Background element management functions for active gameplay
+        function initializeBackgroundElements() {
             backgroundElements = [];
+            // Create static background elements spread across the entire screen width
+            for (let x = -200; x < gameWidth + 200; x += 150 + Math.random() * 100) {
+                backgroundElements.push(createBackgroundElement(x));
+            }
+        }
+        
+        function createBackgroundElement(x) {
+            const types = ['building', 'tree', 'cactus'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            const elementType = elementTypes[type];
             
-            // Generate buildings
-            for (let i = 0; i < BUILDING_COUNT; i++) {
-                const type = elementTypes.building;
-                const width = type.minWidth + Math.random() * (type.maxWidth - type.minWidth);
-                const height = type.minHeight + Math.random() * (type.maxHeight - type.minHeight);
-                const x = Math.random() * (canvas.width - width);
-                const y = GROUND_HEIGHT - height;
+            let element = {
+                x: x,
+                type: type,
+                scale: 0.5 + Math.random() * 0.5, // Random scale between 0.5 and 1.0
+                width: (elementType.minWidth + Math.random() * (elementType.maxWidth - elementType.minWidth)),
+                height: (elementType.minHeight + Math.random() * (elementType.maxHeight - elementType.minHeight))
+            };
+            
+            // Scale the dimensions
+            element.width *= element.scale;
+            element.height *= element.scale;
+            element.y = GROUND_HEIGHT - element.height;
+            
+            return element;
+        }
+        
+        function updateBackgroundElements() {
+            // Move background elements for parallax scrolling
+            backgroundElements.forEach(element => {
+                // Move elements at different speeds based on their scale (smaller = farther = slower)
+                const parallaxSpeed = element.scale * 0.3; // Slower than game speed for parallax effect
+                element.x -= parallaxSpeed * gameSpeed;
                 
-                backgroundElements.push({
-                    type: 'building',
-                    x: x,
-                    y: y,
-                    width: width,
-                    height: height,
-                    draw: type.draw
-                });
+                // Recycle elements that have moved off-screen
+                if (element.x + element.width < -100) {
+                    element.x = canvas.width + Math.random() * 200;
+                }
+            });
+        }
+        
+        // Background elements (buildings, clouds, stars) for enhanced parallax
+        class BackgroundElement {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.width = type === 'building' ? 60 + Math.random() * 40 :
+                            type === 'cloud' ? 80 + Math.random() * 40 : 3;
+                this.height = type === 'building' ? 80 + Math.random() * 60 :
+                             type === 'cloud' ? 30 + Math.random() * 20 : 3;
+                this.opacity = type === 'building' ? 0.3 : type === 'cloud' ? 0.4 : 0.6;
+                this.speed = type === 'building' ? 0.5 : type === 'cloud' ? 0.3 : 0.1; // Different parallax speeds
+                
+                // Store static window pattern for buildings to avoid blinking
+                if (this.type === 'building') {
+                    this.windowPattern = [];
+                    const windowRows = Math.floor(this.height / 12);
+                    const windowCols = Math.floor(this.width / 15);
+                    for (let row = 0; row < windowRows; row++) {
+                        for (let col = 0; col < windowCols; col++) {
+                            // Create a static pattern - some windows lit, some not
+                            this.windowPattern.push({
+                                x: 5 + col * 15,
+                                y: 5 + row * 12,
+                                lit: Math.random() > 0.3 // 70% chance of being lit
+                            });
+                        }
+                    }
+                }
             }
             
-            // Generate trees
-            for (let i = 0; i < TREE_COUNT; i++) {
-                const type = elementTypes.tree;
-                const width = type.minWidth + Math.random() * (type.maxWidth - type.minWidth);
-                const height = type.minHeight + Math.random() * (type.maxHeight - type.minHeight);
-                const x = Math.random() * (canvas.width - width);
-                const y = GROUND_HEIGHT - height;
+            update() {
+                // Move elements based on their parallax speed
+                this.x -= this.speed * gameSpeed;
                 
-                backgroundElements.push({
-                    type: 'tree',
-                    x: x,
-                    y: y,
-                    width: width,
-                    height: height,
-                    draw: type.draw
-                });
+                // Recycle elements that have moved off-screen
+                if (this.x + this.width < 0) {
+                    this.x = canvas.width + Math.random() * 100;
+                    
+                    // For buildings, generate new window pattern when recycled
+                    if (this.type === 'building') {
+                        this.windowPattern = [];
+                        const windowRows = Math.floor(this.height / 12);
+                        const windowCols = Math.floor(this.width / 15);
+                        for (let row = 0; row < windowRows; row++) {
+                            for (let col = 0; col < windowCols; col++) {
+                                this.windowPattern.push({
+                                    x: 5 + col * 15,
+                                    y: 5 + row * 12,
+                                    lit: Math.random() > 0.3
+                                });
+                            }
+                        }
+                    }
+                }
             }
             
-            // Generate cacti
-            for (let i = 0; i < CACTI_COUNT; i++) {
-                const type = elementTypes.cactus;
-                const width = type.minWidth + Math.random() * (type.maxWidth - type.minWidth);
-                const height = type.minHeight + Math.random() * (type.maxHeight - type.minHeight);
-                const x = Math.random() * (canvas.width - width);
-                const y = GROUND_HEIGHT - height;
+            draw() {
+                ctx.globalAlpha = this.opacity;
                 
-                backgroundElements.push({
-                    type: 'cactus',
-                    x: x,
-                    y: y,
-                    width: width,
-                    height: height,
-                    draw: type.draw
-                });
+                if (this.type === 'building') {
+                    // Static building without blinking windows
+                    ctx.fillStyle = '#2a2a4a';
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    
+                    // Draw static windows using stored pattern
+                    this.windowPattern.forEach(window => {
+                        if (window.lit) {
+                            ctx.fillStyle = '#ffff99';
+                            ctx.fillRect(this.x + window.x, this.y + window.y, 8, 6);
+                        }
+                    });
+                } else if (this.type === 'cloud') {
+                    // Static cloud
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.width / 3, 0, Math.PI * 2);
+                    ctx.arc(this.x + this.width / 3, this.y, this.width / 4, 0, Math.PI * 2);
+                    ctx.arc(this.x - this.width / 4, this.y, this.width / 5, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (this.type === 'star') {
+                    // Static star
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                }
+                
+                ctx.globalAlpha = 1;
+            }
+        }
+        
+        // Additional parallax background elements
+        let parallaxElements = [];
+        
+        function initializeParallaxElements() {
+            parallaxElements = [];
+            
+            // Create buildings
+            for (let i = 0; i < 5; i++) {
+                const buildingHeight = 80 + Math.random() * 60; // Match building height range
+                parallaxElements.push(new BackgroundElement(
+                    canvas.width + i * 200 + Math.random() * 100,
+                    GROUND_HEIGHT - buildingHeight, // Ground buildings properly
+                    'building'
+                ));
             }
             
-            // Sort by x position so elements render in proper order (back to front)
-            backgroundElements.sort((a, b) => a.x - b.x);
+            // Create clouds
+            for (let i = 0; i < 3; i++) {
+                parallaxElements.push(new BackgroundElement(
+                    canvas.width + i * 300 + Math.random() * 150,
+                    50 + Math.random() * 100,
+                    'cloud'
+                ));
+            }
+            
+            // Create stars
+            for (let i = 0; i < 15; i++) {
+                parallaxElements.push(new BackgroundElement(
+                    canvas.width + i * 60 + Math.random() * 200,
+                    20 + Math.random() * 150,
+                    'star'
+                ));
+            }
+        }
+        
+        function updateParallaxElements() {
+            parallaxElements.forEach(element => {
+                element.update();
+            });
+        }
+        
+        function drawParallaxElements() {
+            parallaxElements.forEach(element => {
+                element.draw();
+            });
         }
         
         function drawBackgroundElements() {
             backgroundElements.forEach(element => {
-                element.draw(element.x, element.y, element.width, element.height);
+                // Make background elements slightly transparent for depth
+                ctx.globalAlpha = 0.6;
+                elementTypes[element.type].draw(element.x, element.y, element.width, element.height);
+                ctx.globalAlpha = 1.0; // Reset alpha
             });
         }
 
@@ -657,9 +776,20 @@
 
         // --- Game Loop ---
         function animate() {
-            requestAnimationFrame(animate); 
+            requestAnimationFrame(animate);
             
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background elements first (behind everything) during active gameplay
+            if (!isGameOver) {
+                // Update and draw parallax elements (buildings, clouds, stars)
+                updateParallaxElements();
+                drawParallaxElements();
+                
+                // Update and draw ground-based background elements (trees, cacti, buildings)
+                updateBackgroundElements(); // Now includes parallax scrolling movement
+                drawBackgroundElements();
+            }
             
             drawGround();
             
@@ -667,8 +797,6 @@
                 updateObstacles();
                 player.update();
             } else {
-                // Draw background elements only when game is over
-                drawBackgroundElements();
                 obstacles.forEach(obs => obs.draw(obs.x, obs.y, obs.width, obs.height));
                 player.draw();
             }
@@ -682,6 +810,7 @@
             player.crashed = false;
             particles = [];
             backgroundElements = []; // Clear background elements when starting new game
+            parallaxElements = []; // Clear parallax elements when starting new game
             score = 0;
             gameSpeed = 5; // Speed resets on start
             obstacles = [];
@@ -690,13 +819,17 @@
             player.isDucking = false; // Reset ducking state
             player.height = player.originalHeight; // Reset height
             scoreElement.textContent = `SCORE: 0`;
+            
+            // Initialize background elements for active gameplay
+            initializeBackgroundElements();
+            initializeParallaxElements();
+            
             infoOverlay.style.opacity = '0';
             infoOverlay.style.pointerEvents = 'none';
         }
 
         function gameOver() {
             isGameOver = true;
-            generateBackgroundElements(); // Generate background elements when game ends
             infoOverlay.querySelector('h1').textContent = 'GAME OVER!';
             infoOverlay.querySelector('p').textContent = `Your score: ${score}. Tap to restart.`;
             infoOverlay.style.opacity = '1';
