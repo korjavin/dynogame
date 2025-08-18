@@ -74,6 +74,15 @@
             <h1>Captain Underpants</h1>
             <p>Press Space or Tap to Start!</p>
         </div>
+        <!-- Mobile Controls -->
+        <div id="mobile-controls" style="position: absolute; left: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 16px; z-index: 10;">
+            <button id="jump-btn" aria-label="Jump" style="width: 64px; height: 64px; border-radius: 50%; background: #3b82f6; color: white; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 2.2rem; display: flex; align-items: center; justify-content: center;">
+                &#8593;
+            </button>
+            <button id="duck-btn" aria-label="Duck" style="width: 64px; height: 64px; border-radius: 50%; background: #60a5fa; color: white; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 2.2rem; display: flex; align-items: center; justify-content: center;">
+                &#8595;
+            </button>
+        </div>
     </div>
 
     <script>
@@ -852,6 +861,41 @@
         document.addEventListener('keydown', handleKeyDown);
         document.addEventListener('keyup', handleKeyUp);
         infoOverlay.addEventListener('click', startGame);
+
+        // --- Mobile Controls ---
+        const jumpBtn = document.getElementById('jump-btn');
+        const duckBtn = document.getElementById('duck-btn');
+
+        if (jumpBtn && duckBtn) {
+            jumpBtn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                handleInput();
+            });
+            jumpBtn.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                handleInput();
+            });
+            duckBtn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                player.duck();
+            });
+            duckBtn.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                player.duck();
+            });
+            // Release duck on touchend/mouseup
+            duckBtn.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                player.unduck();
+            });
+            duckBtn.addEventListener('mouseup', function(e) {
+                e.preventDefault();
+                player.unduck();
+            });
+            // Prevent context menu on long press
+            duckBtn.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+            jumpBtn.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+        }
 
         // Initial draw
         animate();
