@@ -422,11 +422,11 @@
             );
             
             // Arms (50% chance for left, right, or both arms)
-            const hasLeftArm = Math.random() > 0.5;
-            const hasRightArm = Math.random() > 0.5;
+            const hasLeftArm = true; // Math.random() > 0.5;
+            const hasRightArm =  true; // Math.random() > 0.5;
             const armHeight = height * 0.3;
             const armWidth = width * 0.6;
-            const armY = height * 0.2 + (Math.random() * height * 0.3);
+            const armY = height * 0.2 ; //+ (Math.random() * height * 0.3);
             
             if (hasLeftArm) {
                 // Left arm
