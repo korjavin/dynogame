@@ -7,6 +7,7 @@ const scoreElement = document.getElementById('score');
 let isTelegramApp = false;
 let telegramUser = null;
 let leaderboardData = [];
+let leaderboardTimeout = null;
 
 // Initialize Telegram WebApp
 function initTelegramApp() {
@@ -884,6 +885,15 @@ function startGame() {
     player.height = player.originalHeight; // Reset height
     scoreElement.textContent = `SCORE: 0`;
     
+    // Clear any pending leaderboard timeout
+    if (leaderboardTimeout) {
+        clearTimeout(leaderboardTimeout);
+        leaderboardTimeout = null;
+    }
+    
+    // Hide leaderboard if it's showing
+    hideLeaderboard();
+    
     // Initialize background elements for active gameplay
     initializeBackgroundElements();
     initializeParallaxElements();
@@ -914,8 +924,11 @@ function gameOver() {
     
     // Show leaderboard after a short delay if in Telegram
     if (isTelegramApp && telegramUser) {
-        setTimeout(() => {
-            showLeaderboard();
+        leaderboardTimeout = setTimeout(() => {
+            if (isGameOver) { // Only show if still game over
+                showLeaderboard();
+            }
+            leaderboardTimeout = null;
         }, 2000);
     }
 }
