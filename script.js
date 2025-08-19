@@ -163,6 +163,57 @@ function hideLeaderboard() {
     overlay.style.display = 'none';
 }
 
+function shareLeaderboard() {
+    if (!isTelegramApp || !Telegram.WebApp) return;
+    
+    // Get current player's score for the share message
+    let playerScore = 0;
+    if (telegramUser && leaderboardData.length > 0) {
+        const currentPlayer = leaderboardData.find(player => player.id === telegramUser.id);
+        if (currentPlayer) {
+            playerScore = currentPlayer.score;
+        }
+    }
+    
+    // Detect bot name from various sources
+    let botName = 'dynogamebot'; // fallback
+    
+    // Method 1: Try to extract from current URL
+    const currentUrl = window.location.href;
+    const urlMatch = currentUrl.match(/t\.me\/([^\/]+)/);
+    if (urlMatch) {
+        botName = urlMatch[1];
+    } else {
+        // Method 2: Try to extract from document.referrer if available
+        const referrer = document.referrer;
+        const referrerMatch = referrer.match(/t\.me\/([^\/]+)/);
+        if (referrerMatch) {
+            botName = referrerMatch[1];
+        } else {
+            // Method 3: Check if there's bot info in Telegram.WebApp data
+            if (Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.hash) {
+                // Try to get bot info from the WebApp environment
+                // This might not always work, but we can try
+                console.log('Telegram WebApp data:', Telegram.WebApp.initDataUnsafe);
+            }
+        }
+    }
+    
+    // Create share text
+    const textToSend = playerScore > 0 
+        ? `Привет! Оцени мой результат в игре Captain Underpants: ${playerScore} очков! 🎮`
+        : 'Привет! Попробуй сыграть в Captain Underpants! 🎮';
+    
+    // Create share URL
+    const urlToShare = `https://t.me/${botName}/play`;
+    
+    // Create Telegram share URL
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(urlToShare)}&text=${encodeURIComponent(textToSend)}`;
+    
+    // Open share dialog
+    Telegram.WebApp.openTelegramLink(shareUrl);
+}
+
 // --- Game Configuration ---
 let gameWidth = window.innerWidth > 800 ? 800 : window.innerWidth * 0.9;
 let gameHeight = window.innerHeight > 600 ? 600 : window.innerHeight * 0.8;
@@ -1005,6 +1056,11 @@ if (jumpBtn && duckBtn) {
 const closeLeaderboardBtn = document.getElementById('close-leaderboard');
 if (closeLeaderboardBtn) {
     closeLeaderboardBtn.addEventListener('click', hideLeaderboard);
+}
+
+const shareLeaderboardBtn = document.getElementById('share-leaderboard');
+if (shareLeaderboardBtn) {
+    shareLeaderboardBtn.addEventListener('click', shareLeaderboard);
 }
 
 const showLeaderboardBtn = document.getElementById('show-leaderboard-btn');
