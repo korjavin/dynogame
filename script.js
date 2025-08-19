@@ -3,6 +3,165 @@ const ctx = canvas.getContext('2d');
 const infoOverlay = document.getElementById('info-overlay');
 const scoreElement = document.getElementById('score');
 
+// Telegram WebApp integration
+let isTelegramApp = false;
+let telegramUser = null;
+let leaderboardData = [];
+
+// Initialize Telegram WebApp
+function initTelegramApp() {
+    try {
+        if (typeof Telegram !== 'undefined' && Telegram.WebApp && Telegram.WebApp.initData) {
+            Telegram.WebApp.ready();
+            telegramUser = Telegram.WebApp.initDataUnsafe.user;
+            
+            // Only proceed if we have a valid user and CloudStorage is supported
+            if (telegramUser && Telegram.WebApp.CloudStorage) {
+                isTelegramApp = true;
+                
+                // Expand the app to full height
+                Telegram.WebApp.expand();
+                
+                // Set main button if needed
+                Telegram.WebApp.MainButton.hide();
+                
+                console.log('Telegram WebApp initialized successfully', telegramUser);
+                loadLeaderboard();
+                
+                // Show Telegram-specific UI elements
+                const telegramInfo = document.getElementById('telegram-info');
+                if (telegramInfo) {
+                    telegramInfo.style.display = 'block';
+                }
+            } else {
+                console.log('Telegram WebApp detected but user not authorized or CloudStorage not available');
+            }
+        } else {
+            console.log('Running outside Telegram - normal browser mode');
+        }
+    } catch (error) {
+        console.log('Telegram WebApp initialization failed:', error.message);
+        isTelegramApp = false;
+    }
+}
+
+// Leaderboard functions
+function saveScore(score) {
+    if (!isTelegramApp || !telegramUser || !Telegram.WebApp.CloudStorage) return;
+    
+    try {
+        const playerKey = `player_${telegramUser.id}`;
+        const playerData = {
+            id: telegramUser.id,
+            firstName: telegramUser.first_name || 'Player',
+            lastName: telegramUser.last_name || '',
+            username: telegramUser.username || '',
+            score: score,
+            timestamp: Date.now()
+        };
+        
+        // Get current player best score
+        Telegram.WebApp.CloudStorage.getItem(playerKey, (error, value) => {
+            if (!error) {
+                const currentBest = value ? JSON.parse(value) : null;
+                if (!currentBest || score > currentBest.score) {
+                    // Save new best score
+                    Telegram.WebApp.CloudStorage.setItem(playerKey, JSON.stringify(playerData), (error) => {
+                        if (!error) {
+                            console.log('Score saved successfully');
+                            updateLeaderboard(playerData);
+                        } else {
+                            console.log('Failed to save score:', error);
+                        }
+                    });
+                }
+            } else {
+                console.log('Failed to get current score:', error);
+            }
+        });
+    } catch (error) {
+        console.log('Error in saveScore:', error.message);
+    }
+}
+
+function loadLeaderboard() {
+    if (!isTelegramApp || !Telegram.WebApp.CloudStorage) return;
+    
+    try {
+        // Get leaderboard data
+        Telegram.WebApp.CloudStorage.getItem('leaderboard', (error, value) => {
+            if (!error && value) {
+                leaderboardData = JSON.parse(value);
+                leaderboardData.sort((a, b) => b.score - a.score);
+                leaderboardData = leaderboardData.slice(0, 10); // Keep only top 10
+                console.log('Leaderboard loaded:', leaderboardData.length, 'players');
+            } else if (error) {
+                console.log('Failed to load leaderboard:', error);
+            }
+        });
+    } catch (error) {
+        console.log('Error in loadLeaderboard:', error.message);
+    }
+}
+
+function updateLeaderboard(newPlayerData) {
+    if (!isTelegramApp || !Telegram.WebApp.CloudStorage) return;
+    
+    try {
+        // Remove existing entry for this player
+        leaderboardData = leaderboardData.filter(player => player.id !== newPlayerData.id);
+        
+        // Add new entry
+        leaderboardData.push(newPlayerData);
+        
+        // Sort by score (highest first)
+        leaderboardData.sort((a, b) => b.score - a.score);
+        
+        // Keep only top 10
+        leaderboardData = leaderboardData.slice(0, 10);
+        
+        // Save back to cloud storage
+        Telegram.WebApp.CloudStorage.setItem('leaderboard', JSON.stringify(leaderboardData), (error) => {
+            if (!error) {
+                console.log('Leaderboard updated successfully');
+            } else {
+                console.log('Failed to update leaderboard:', error);
+            }
+        });
+    } catch (error) {
+        console.log('Error in updateLeaderboard:', error.message);
+    }
+}
+
+function showLeaderboard() {
+    const overlay = document.getElementById('leaderboard-overlay');
+    const list = document.getElementById('leaderboard-list');
+    
+    if (leaderboardData.length === 0) {
+        list.innerHTML = '<p style="text-align: center; color: #9ca3af;">No scores yet!</p>';
+    } else {
+        let html = '';
+        leaderboardData.forEach((player, index) => {
+            const displayName = player.firstName + (player.lastName ? ` ${player.lastName}` : '');
+            const trophy = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+            html += `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #374151;">
+                    <span>${trophy} ${displayName}</span>
+                    <span style="font-weight: bold;">${player.score}</span>
+                </div>
+            `;
+        });
+        list.innerHTML = html;
+    }
+    
+    overlay.style.display = 'flex';
+}
+
+function hideLeaderboard() {
+    const overlay = document.getElementById('leaderboard-overlay');
+    overlay.style.display = 'none';
+}
+
 // --- Game Configuration ---
 let gameWidth = window.innerWidth > 800 ? 800 : window.innerWidth * 0.9;
 let gameHeight = window.innerHeight > 600 ? 600 : window.innerHeight * 0.8;
@@ -735,10 +894,30 @@ function startGame() {
 
 function gameOver() {
     isGameOver = true;
+    
+    // Save score if in Telegram
+    if (isTelegramApp && telegramUser) {
+        saveScore(score);
+    }
+    
     infoOverlay.querySelector('h1').textContent = 'GAME OVER!';
-    infoOverlay.querySelector('p').textContent = `Your score: ${score}. Tap to restart.`;
+    
+    // Update the message based on whether we're in Telegram
+    let message = `Your score: ${score}. Tap to restart.`;
+    if (isTelegramApp && telegramUser) {
+        message += ' Tap leaderboard to see top players!';
+    }
+    infoOverlay.querySelector('p').textContent = message;
+    
     infoOverlay.style.opacity = '1';
     infoOverlay.style.pointerEvents = 'auto';
+    
+    // Show leaderboard after a short delay if in Telegram
+    if (isTelegramApp && telegramUser) {
+        setTimeout(() => {
+            showLeaderboard();
+        }, 2000);
+    }
 }
 
 // --- Event Listeners ---
@@ -808,6 +987,28 @@ if (jumpBtn && duckBtn) {
     duckBtn.addEventListener('contextmenu', function(e) { e.preventDefault(); });
     jumpBtn.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 }
+
+// Leaderboard event listeners
+const closeLeaderboardBtn = document.getElementById('close-leaderboard');
+if (closeLeaderboardBtn) {
+    closeLeaderboardBtn.addEventListener('click', hideLeaderboard);
+}
+
+const showLeaderboardBtn = document.getElementById('show-leaderboard-btn');
+if (showLeaderboardBtn) {
+    showLeaderboardBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showLeaderboard();
+    });
+}
+
+// Initialize Telegram WebApp on page load
+document.addEventListener('DOMContentLoaded', () => {
+    initTelegramApp();
+});
+
+// Also try to initialize immediately in case DOM is already loaded
+initTelegramApp();
 
 // Initial draw
 animate();
