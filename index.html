@@ -572,12 +572,16 @@
                 this.x = x;
                 this.y = y;
                 this.type = type;
-                this.width = type === 'building' ? 60 + Math.random() * 40 :
-                            type === 'cloud' ? 80 + Math.random() * 40 : 3;
-                //this.height = type === 'building' ? 80 + Math.random() * 60 :
-                //             type === 'cloud' ? 30 + Math.random() * 20 : 3;
-                this.opacity = type === 'building' ? 0.3 : type === 'cloud' ? 0.4 : 0.6;
-                this.speed = type === 'building' ? 0.5 : type === 'cloud' ? 0.3 : 0.1; // Different parallax speeds
+                if (type === 'cloud') {
+                    this.width = 100 + Math.random() * 80;
+                    this.opacity = 0.7;
+                    this.color = rainActive ? '#888a8c' : '#ffffff';
+                } else {
+                    this.width = type === 'building' ? 60 + Math.random() * 40 : 3;
+                    this.opacity = type === 'building' ? 0.3 : type === 'star' ? 0.6 : 1;
+                    this.color = undefined;
+                }
+                this.speed = type === 'building' ? 0.5 : type === 'cloud' ? 0.25 + Math.random() * 0.15 : 0.1;
                 
                 // Store static window pattern for buildings to avoid blinking
                 if (this.type === 'building') {
@@ -639,8 +643,7 @@
                         }
                     });
                 } else if (this.type === 'cloud') {
-                    // Static cloud
-                    ctx.fillStyle = '#ffffff';
+                    ctx.fillStyle = (rainActive ? '#888a8c' : '#ffffff');
                     ctx.beginPath();
                     ctx.arc(this.x, this.y, this.width / 3, 0, Math.PI * 2);
                     ctx.arc(this.x + this.width / 3, this.y, this.width / 4, 0, Math.PI * 2);
@@ -661,7 +664,6 @@
         
         function initializeParallaxElements() {
             parallaxElements = [];
-            
             // Create buildings
             for (let i = 0; i < 5; i++) {
                 const buildingHeight = 80 + Math.random() * 60; // Match building height range
@@ -671,16 +673,14 @@
                     'building'
                 ));
             }
-            
-            // Create clouds
-            for (let i = 0; i < 3; i++) {
+            // Create more clouds (8 instead of 3)
+            for (let i = 0; i < 8; i++) {
                 parallaxElements.push(new BackgroundElement(
-                    canvas.width + i * 300 + Math.random() * 150,
-                    50 + Math.random() * 100,
+                    canvas.width + i * 180 + Math.random() * 120,
+                    40 + Math.random() * 120,
                     'cloud'
                 ));
             }
-            
             // Create stars
             for (let i = 0; i < 15; i++) {
                 parallaxElements.push(new BackgroundElement(
@@ -751,7 +751,7 @@
                     score++;
                     obs.passed = true;
                     scoreElement.textContent = `SCORE: ${score}`;
-                    // REMOVED: Score-based speed increase is replaced by the gradual one
+                    checkRainActivation();
                 }
 
                 // Collision detection
@@ -796,6 +796,72 @@
             ctx.stroke();
         }
 
+        // --- Rain Effect ---
+        let rainActive = false;
+        let rainParticles = [];
+        const RAIN_PARTICLE_COUNT = 80;
+        let lightningActive = false;
+        let lightningTimer = 0;
+        let lightningAlpha = 0;
+        function spawnRainParticles() {
+            rainParticles = [];
+            for (let i = 0; i < RAIN_PARTICLE_COUNT; i++) {
+                rainParticles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vy: 8 + Math.random() * 6,
+                    length: 10 + Math.random() * 10,
+                    opacity: 0.3 + Math.random() * 0.5
+                });
+            }
+        }
+        function updateRainParticles() {
+            for (let p of rainParticles) {
+                p.y += p.vy;
+                if (p.y > canvas.height) {
+                    p.x = Math.random() * canvas.width;
+                    p.y = -p.length;
+                }
+            }
+        }
+        function drawRainParticles() {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(120,180,255,0.5)';
+            ctx.lineWidth = 2;
+            for (let p of rainParticles) {
+                ctx.globalAlpha = p.opacity;
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x, p.y + p.length);
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+        }
+        function maybeTriggerLightning() {
+            if (rainActive && Math.random() < 0.008 && !lightningActive) {
+                lightningActive = true;
+                lightningTimer = 0;
+                lightningAlpha = 1;
+            }
+        }
+        function drawLightning() {
+            if (lightningActive) {
+                ctx.save();
+                ctx.globalAlpha = lightningAlpha;
+                ctx.fillStyle = 'rgba(255,255,255,1)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.globalAlpha = 1;
+                ctx.restore();
+                lightningAlpha -= 0.12;
+                lightningTimer++;
+                if (lightningAlpha <= 0) {
+                    lightningActive = false;
+                    lightningAlpha = 0;
+                }
+            }
+        }
+
         // --- Game Loop ---
         function animate() {
             requestAnimationFrame(animate);
@@ -823,6 +889,12 @@
                 player.draw();
             }
             
+            if (rainActive) {
+                updateRainParticles();
+                drawRainParticles();
+                maybeTriggerLightning();
+                drawLightning();
+            }
             updateParticles();
         }
 
@@ -841,6 +913,9 @@
             player.isDucking = false; // Reset ducking state
             player.height = player.originalHeight; // Reset height
             scoreElement.textContent = `SCORE: 0`;
+            // Rain reset
+            rainActive = false;
+            rainParticles = [];
             
             // Initialize background elements for active gameplay
             initializeBackgroundElements();
@@ -856,6 +931,18 @@
             infoOverlay.querySelector('p').textContent = `Your score: ${score}. Tap to restart.`;
             infoOverlay.style.opacity = '1';
             infoOverlay.style.pointerEvents = 'auto';
+        }
+        
+        function checkRainActivation() {
+            if (!rainActive && score >= 20 && score <= 40) {
+                rainActive = true;
+                spawnRainParticles();
+            } else if (rainActive && (score < 20 || score > 40)) {
+                rainActive = false;
+                rainParticles = [];
+                lightningActive = false;
+                lightningAlpha = 0;
+            }
         }
         
         // --- Event Listeners ---
