@@ -371,34 +371,48 @@
         };
 
         // Background element drawing functions
-        function drawBuilding(element) {
-            ctx.save();
-            ctx.translate(element.x, element.y);
-            // Building body
-            const buildingColors = ['#6c757d', '#495057', '#343a40', '#212529'];
-            ctx.fillStyle = buildingColors[Math.floor(Math.random() * buildingColors.length)];
-            ctx.fillRect(0, 0, element.width, element.height);
-            // Windows
-            ctx.fillStyle = 'rgba(255, 255, 100, 0.8)';
-            const windowSize = element.width / 10;
-            const windowSpacing = windowSize * 1.5;
-            const windowRows = Math.floor(element.height / windowSpacing);
-            const windowCols = Math.floor(element.width / windowSpacing);
-            for (let row = 0; row < windowRows; row++) {
-                for (let col = 0; col < windowCols; col++) {
-                    // Random chance for window to be lit or dark
-                    if (Math.random() > 0.4) {
-                        ctx.fillRect(
-                            col * windowSpacing + windowSize/2,
-                            row * windowSpacing + windowSize/2,
-                            windowSize,
-                            windowSize
-                        );
-                    }
-                }
+function drawBuilding(element) {
+    ctx.save();
+    ctx.translate(element.x, element.y);
+    // --- Static building body color ---
+    const buildingColors = ['#6c757d', '#495057', '#343a40', '#212529'];
+    if (!element.bodyColor) {
+        element.bodyColor = buildingColors[Math.floor(Math.random() * buildingColors.length)];
+    }
+    ctx.fillStyle = element.bodyColor;
+    ctx.fillRect(0, 0, element.width, element.height);
+    // Windows
+    ctx.fillStyle = 'rgba(255, 255, 100, 0.8)';
+    const windowSize = element.width / 10;
+    const windowSpacing = windowSize * 1.5;
+    const windowRows = Math.floor(element.height / windowSpacing);
+    const windowCols = Math.floor(element.width / windowSpacing);
+    // --- Static window pattern ---
+    if (!element.windowPattern) {
+        element.windowPattern = [];
+        for (let row = 0; row < windowRows; row++) {
+            for (let col = 0; col < windowCols; col++) {
+                // Store static lit/unlit state
+                element.windowPattern.push({
+                    row,
+                    col,
+                    lit: Math.random() > 0.3
+                });
             }
-            ctx.restore();
         }
+    }
+    for (const win of element.windowPattern) {
+        if (win.lit) {
+            ctx.fillRect(
+                win.col * windowSpacing + windowSize/2,
+                win.row * windowSpacing + windowSize/2,
+                windowSize,
+                windowSize
+            );
+        }
+    }
+    ctx.restore();
+}
         
         function drawTree(element) {
             ctx.save();
@@ -534,7 +548,6 @@
             const types = ['building', 'tree', 'cactus'];
             const type = types[Math.floor(Math.random() * types.length)];
             const elementType = elementTypes[type];
-            
             let element = {
                 x: x,
                 type: type,
@@ -542,26 +555,30 @@
                 width: (elementType.minWidth + Math.random() * (elementType.maxWidth - elementType.minWidth)),
                 height: (elementType.minHeight + Math.random() * (elementType.maxHeight - elementType.minHeight))
             };
-
             element.yArm = element.height * 0.2 + (Math.random() * element.height * 0.3);
             // Scale the dimensions
             element.width *= element.scale;
             element.height *= element.scale;
             element.y = GROUND_HEIGHT - element.height;
-            
+            // --- For buildings, generate static window pattern ---
+            if (type === 'building') {
+                element.windowPattern = undefined; // Will be generated on first draw
+            }
             return element;
         }
         
         function updateBackgroundElements() {
-            // Move background elements for parallax scrolling
             backgroundElements.forEach(element => {
                 // Move elements at different speeds based on their scale (smaller = farther = slower)
                 const parallaxSpeed = element.scale * 0.3; // Slower than game speed for parallax effect
                 element.x -= parallaxSpeed * gameSpeed;
-                
                 // Recycle elements that have moved off-screen
                 if (element.x + element.width < -100) {
                     element.x = canvas.width + Math.random() * 200;
+                    // --- For buildings, reset window pattern so it is regenerated ---
+                    if (element.type === 'building') {
+                        element.windowPattern = undefined;
+                    }
                 }
             });
         }
