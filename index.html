@@ -824,19 +824,76 @@
         }
         
         // --- Ground ---
-        function drawGround() {
-            ctx.fillStyle = '#654321';
-            ctx.fillRect(0, GROUND_HEIGHT, canvas.width, canvas.height - GROUND_HEIGHT);
-            
-            ctx.strokeStyle = '#32CD32';
-            ctx.lineWidth = 10;
-            ctx.beginPath();
-            ctx.moveTo(0, GROUND_HEIGHT);
-            ctx.lineTo(canvas.width, GROUND_HEIGHT);
-            ctx.stroke();
+        // --- Pebble Data ---
+let groundPebbles = [];
+function generateGroundPebbles() {
+    groundPebbles = [];
+    const circleCount = Math.floor(canvas.width / 22);
+    for (let i = 0; i < circleCount; i++) {
+        const x = i * (canvas.width / circleCount) + Math.random() * 12 - 6;
+        const y = GROUND_HEIGHT + 18 + Math.random() * (canvas.height - GROUND_HEIGHT - 30);
+        const radius = 5 + Math.random() * 7;
+        const shade = Math.random();
+        let color;
+        if (shade < 0.33) {
+            color = '#3d2612';
+        } else if (shade < 0.66) {
+            color = '#7a5230';
+        } else {
+            color = '#bca37a';
         }
+        const alpha = 0.45 + Math.random() * 0.35;
+        const shadowBlur = Math.random() < 0.5 ? 0 : 6;
+        groundPebbles.push({ x, y, radius, color, alpha, shadowBlur });
+    }
+}
 
-        // --- Rain Effect ---
+function drawGround() {
+    // Draw main ground
+    ctx.fillStyle = '#654321';
+    ctx.fillRect(0, GROUND_HEIGHT, canvas.width, canvas.height - GROUND_HEIGHT);
+
+    // Move and draw decorative circles (pebbles, stones, etc.)
+    for (const pebble of groundPebbles) {
+        // Move pebbles leftward
+        pebble.x -= gameSpeed;
+        // If off screen to the left, recycle to the right
+        if (pebble.x + pebble.radius < 0) {
+            pebble.x = canvas.width + pebble.radius + Math.random() * 20;
+            pebble.y = GROUND_HEIGHT + 18 + Math.random() * (canvas.height - GROUND_HEIGHT - 30);
+            pebble.radius = 5 + Math.random() * 7;
+            const shade = Math.random();
+            if (shade < 0.33) {
+                pebble.color = '#3d2612';
+            } else if (shade < 0.66) {
+                pebble.color = '#7a5230';
+            } else {
+                pebble.color = '#bca37a';
+            }
+            pebble.alpha = 0.45 + Math.random() * 0.35;
+            pebble.shadowBlur = Math.random() < 0.5 ? 0 : 6;
+        }
+        ctx.save();
+        ctx.globalAlpha = pebble.alpha;
+        ctx.beginPath();
+        ctx.arc(pebble.x, pebble.y, pebble.radius, 0, Math.PI * 2);
+        ctx.fillStyle = pebble.color;
+        ctx.shadowColor = pebble.color;
+        ctx.shadowBlur = pebble.shadowBlur;
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // Draw grass line
+    ctx.strokeStyle = '#32CD32';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_HEIGHT);
+    ctx.lineTo(canvas.width, GROUND_HEIGHT);
+    ctx.stroke();
+}
+
+// --- Rain Effect ---
         let rainActive = false;
         let rainParticles = [];
         const RAIN_PARTICLE_COUNT = 80;
@@ -965,11 +1022,13 @@
             // Rain reset
             rainActive = false;
             rainParticles = [];
-            
+
+            // Regenerate pebbles for new game (in case of resize)
+            generateGroundPebbles();
             // Initialize background elements for active gameplay
             initializeBackgroundElements();
             initializeParallaxElements();
-            
+
             infoOverlay.style.opacity = '0';
             infoOverlay.style.pointerEvents = 'none';
         }
@@ -1102,6 +1161,7 @@
         }
 
         // Initial draw
+        generateGroundPebbles();
         animate();
     </script>
 >>>>>>> 9c29e35 (feat: implement cape physics for player character with dynamic movement)
