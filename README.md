@@ -1,12 +1,12 @@
 # Captain Underpants Adventure
 
-A fun 2D endless runner game where you control Captain Underpants as he soars through the sky avoiding oncoming missiles!
+A fun 2D endless runner game where you control Captain Underpants as he runs through a city landscape, jumping over missiles, buildings, and obstacles!
 
-![Captain Underpants Adventure](https://via.placeholder.com/800x400?text=Captain+Underpants+Adventure)
+![Captain Underpants Adventure](screen.png)
 
 ## Game Overview
 
-Captain Underpants Adventure is a simple yet addictive 2D endless runner game built entirely in a single HTML file. Players control the infamous Captain Underpants character as he jumps to avoid incoming missiles. The game features increasing difficulty as you progress, making it both challenging and entertaining for players of all ages.
+Captain Underpants Adventure is a simple yet addictive 2D endless runner game built entirely in a single HTML file. Players control the infamous Captain Underpants character as he runs through a vibrant city environment, jumping over missiles, buildings, trees, and other obstacles. The game features increasing difficulty as you progress, making it both challenging and entertaining for players of all ages.
 
 The game is inspired by the popular Chrome dinosaur game but with a humorous twist featuring the beloved children's book character, Captain Underpants. The objective is simple: jump over missiles and survive as long as possible while accumulating points.
 
@@ -29,7 +29,7 @@ The game is inspired by the popular Chrome dinosaur game but with a humorous twi
 
 ### Objective
 
-Avoid oncoming missiles by timing your jumps perfectly. Each missile you successfully avoid adds to your score. The game ends when Captain Underpants collides with a missile.
+Avoid oncoming missiles, buildings, trees, and other obstacles by timing your jumps perfectly. Each obstacle you successfully avoid adds to your score. The game ends when Captain Underpants collides with any obstacle.
 
 ### Tips
 
@@ -64,7 +64,7 @@ Potential future improvements to the game may include:
 
 - **Multiple character skins**: Play as different characters from the Captain Underpants universe
 - **Power-ups**: Special abilities that temporarily enhance Captain Underpants' capabilities
-- **Different obstacle types**: Variety of obstacles beyond missiles
+- **Multiple obstacle types**: Buildings, trees, and various urban obstacles in addition to missiles
 - **Sound effects and background music**: Audio elements to enhance the gaming experience
 - **Local storage high scores**: Save your best scores locally
 - **Online leaderboards**: Compete with players worldwide
