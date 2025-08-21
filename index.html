@@ -983,40 +983,53 @@
         }
         
         function checkRainActivation() {
-            // Smooth rain activation/deactivation: fade in/out and allow overlap
+            // Smooth rain/night activation/deactivation: after score 20, any combination of night/rain/none can occur
             const rainStart = 20;
             const rainEnd = 40;
-            // Night mode after score 5
-            if (score >= 5) {
-                nightActive = true;
-            } else {
-                nightActive = false;
+            // After score 20, randomly decide if night, rain, both, or none should be active (and keep that state until score leaves range)
+            if (score === rainStart) {
+                // Only randomize at the moment score hits 20
+                const nightRand = Math.random() < 0.5; // 50% chance for night
+                const rainRand = Math.random() < 0.5; // 50% chance for rain
+                window._nightRainState = { night: nightRand, rain: rainRand };
             }
-            if (!rainActive && score >= rainStart && score <= rainEnd) {
-                rainActive = true;
-                spawnRainParticles();
-            } else if (rainActive && (score < rainStart || score > rainEnd)) {
-                // Instead of instantly stopping, fade out rain
-                let fadeOut = true;
-                if (fadeOut) {
-                    // Gradually reduce rain particle opacity
+            if (score >= rainStart && score <= rainEnd) {
+                if (window._nightRainState) {
+                    nightActive = window._nightRainState.night;
+                    if (!rainActive && window._nightRainState.rain) {
+                        rainActive = true;
+                        spawnRainParticles();
+                    }
+                    if (!window._nightRainState.rain && rainActive) {
+                        // Fade out rain if it was previously on
+                        for (let p of rainParticles) {
+                            p.opacity -= 0.03;
+                            if (p.opacity < 0) p.opacity = 0;
+                        }
+                        if (rainParticles.every(p => p.opacity <= 0.01)) {
+                            rainActive = false;
+                            rainParticles = [];
+                            lightningActive = false;
+                            lightningAlpha = 0;
+                        }
+                    }
+                }
+            } else {
+                // Outside the range, reset both
+                nightActive = false;
+                if (rainActive) {
                     for (let p of rainParticles) {
                         p.opacity -= 0.03;
                         if (p.opacity < 0) p.opacity = 0;
                     }
-                    // When all particles are invisible, fully stop rain
                     if (rainParticles.every(p => p.opacity <= 0.01)) {
                         rainActive = false;
                         rainParticles = [];
                         lightningActive = false;
                         lightningAlpha = 0;
                     }
-                } else {
-                    rainActive = false;
-                    rainParticles = [];
-                    lightningActive = false;
-                    lightningAlpha = 0;
                 }
+                window._nightRainState = null;
             }
         }
         
