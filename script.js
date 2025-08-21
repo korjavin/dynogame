@@ -292,6 +292,16 @@ function updateParticles() {
 }
 
 // --- Player (Captain Underpants) ---
+// --- CAPE PHYSICS ---
+// Cape angle (radians), 0 = straight back, positive = up, negative = down
+let capeAngle = 0;
+let capeAngleTarget = 0;
+let capeAngleVel = 0;
+const CAPE_ANGLE_DAMPING = 0.15;
+const CAPE_ANGLE_SPEED = 0.12;
+const CAPE_ANGLE_MAX = Math.PI / 2.2; // max upward
+const CAPE_ANGLE_MIN = -Math.PI / 3; // max downward
+
 const player = {
     x: 50,
     y: GROUND_HEIGHT,
@@ -302,6 +312,7 @@ const player = {
     isJumping: false,
     isDucking: false,  // Add ducking state
     crashed: false,
+    _capeDuckTimer: 0, // Cape duck timer
     
     draw() {
         if (this.crashed) return;
@@ -327,22 +338,22 @@ const player = {
         ctx.strokeStyle = outlineBlack;
 
         // 1. CAPE (drawn first to be behind the body)
+        ctx.save();
         ctx.fillStyle = capeRed;
+        ctx.strokeStyle = outlineBlack;
+        // Cape anchor point (shoulders)
+        ctx.translate(w / 2, -h * 0.9);
+        // Cape physics: swing angle
+        ctx.rotate(capeAngle);
         ctx.beginPath();
-        if (this.isDucking) {
-            // Flatter cape for ducking
-            ctx.moveTo(w / 2, -h * 0.8);
-            ctx.quadraticCurveTo(w * 0.1, -h * 0.5, -w * 0.7, -h * 0.7);
-            ctx.quadraticCurveTo(w * 0.2, -h * 0.2, w / 2, -h * 0.8);
-        } else {
-            // Flowing cape for standing/jumping
-            ctx.moveTo(w / 2, -h * 0.9);
-            ctx.quadraticCurveTo(w * 0.1, -h * 0.6, -w * 0.6, -h * 0.8);
-            ctx.quadraticCurveTo(w * 0.3, -h * 0.2, w / 2, -h * 0.9);
-        }
+        // Cape shape: a flowing triangle with a curve
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(-w * 0.7, h * 0.2, -w * 0.7, h * 0.7);
+        ctx.quadraticCurveTo(-w * 0.2, h * 0.8, 0, h * 0.7);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
+        ctx.restore();
 
         // 2. BODY
         ctx.fillStyle = skinTone;
@@ -422,6 +433,45 @@ const player = {
     update() {
         if (this.crashed) return;
 
+        // --- Cape physics update ---
+        // Determine target angle based on state
+        if (this.isDucking) {
+            if (this._capeDuckTimer < 12) {
+                // For the first 12 frames of ducking, cape goes up
+                capeAngleTarget = CAPE_ANGLE_MAX * 0.9;
+                this._capeDuckTimer++;
+            } else {
+                // After, cape falls down (gravity)
+                capeAngleTarget = CAPE_ANGLE_MIN * 0.7;
+            }
+        } else if (!this.isDucking && !this.isJumping && this.y === GROUND_HEIGHT) {
+            // Just finished ducking and now standing
+            capeAngleTarget = 0.1 + Math.sin(Date.now() * 0.008) * 0.08; // Gentle flutter
+            this._capeDuckTimer = 0;
+        } else if (this.isJumping) {
+            if (this.velocityY < -2) {
+                // Going up
+                capeAngleTarget = CAPE_ANGLE_MIN * 0.7; // Cape down
+            } else if (this.velocityY > 2) {
+                // Falling
+                capeAngleTarget = CAPE_ANGLE_MAX; // Cape up
+            } else {
+                // In air, but not much vertical speed
+                capeAngleTarget = 0;
+            }
+        } else {
+            // Running/standing
+            capeAngleTarget = 0.1 + Math.sin(Date.now() * 0.008) * 0.08; // Gentle flutter
+        }
+        // Smoothly approach target
+        let diff = capeAngleTarget - capeAngle;
+        capeAngleVel += diff * CAPE_ANGLE_SPEED;
+        capeAngleVel *= (1 - CAPE_ANGLE_DAMPING);
+        capeAngle += capeAngleVel;
+        // Clamp
+        if (capeAngle > CAPE_ANGLE_MAX) capeAngle = CAPE_ANGLE_MAX;
+        if (capeAngle < CAPE_ANGLE_MIN) capeAngle = CAPE_ANGLE_MIN;
+
         if (this.isJumping) {
             this.velocityY += GRAVITY;
             this.y += this.velocityY;
@@ -468,9 +518,12 @@ const obstacleTypes = {
 function drawBuilding(element) {
     ctx.save();
     ctx.translate(element.x, element.y);
-    // Building body
+    // --- Static building body color ---
     const buildingColors = ['#6c757d', '#495057', '#343a40', '#212529'];
-    ctx.fillStyle = buildingColors[Math.floor(Math.random() * buildingColors.length)];
+    if (!element.bodyColor) {
+        element.bodyColor = buildingColors[Math.floor(Math.random() * buildingColors.length)];
+    }
+    ctx.fillStyle = element.bodyColor;
     ctx.fillRect(0, 0, element.width, element.height);
     // Windows
     ctx.fillStyle = 'rgba(255, 255, 100, 0.8)';
@@ -478,17 +531,28 @@ function drawBuilding(element) {
     const windowSpacing = windowSize * 1.5;
     const windowRows = Math.floor(element.height / windowSpacing);
     const windowCols = Math.floor(element.width / windowSpacing);
-    for (let row = 0; row < windowRows; row++) {
-        for (let col = 0; col < windowCols; col++) {
-            // Random chance for window to be lit or dark
-            if (Math.random() > 0.4) {
-                ctx.fillRect(
-                    col * windowSpacing + windowSize/2,
-                    row * windowSpacing + windowSize/2,
-                    windowSize,
-                    windowSize
-                );
+    // --- Static window pattern ---
+    if (!element.windowPattern) {
+        element.windowPattern = [];
+        for (let row = 0; row < windowRows; row++) {
+            for (let col = 0; col < windowCols; col++) {
+                // Store static lit/unlit state
+                element.windowPattern.push({
+                    row,
+                    col,
+                    lit: Math.random() > 0.3
+                });
             }
+        }
+    }
+    for (const win of element.windowPattern) {
+        if (win.lit) {
+            ctx.fillRect(
+                win.col * windowSpacing + windowSize/2,
+                win.row * windowSpacing + windowSize/2,
+                windowSize,
+                windowSize
+            );
         }
     }
     ctx.restore();
@@ -628,7 +692,6 @@ function createBackgroundElement(x) {
     const types = ['building', 'tree', 'cactus'];
     const type = types[Math.floor(Math.random() * types.length)];
     const elementType = elementTypes[type];
-    
     let element = {
         x: x,
         type: type,
@@ -636,13 +699,15 @@ function createBackgroundElement(x) {
         width: (elementType.minWidth + Math.random() * (elementType.maxWidth - elementType.minWidth)),
         height: (elementType.minHeight + Math.random() * (elementType.maxHeight - elementType.minHeight))
     };
-
     element.yArm = element.height * 0.2 + (Math.random() * element.height * 0.3);
     // Scale the dimensions
     element.width *= element.scale;
     element.height *= element.scale;
     element.y = GROUND_HEIGHT - element.height;
-    
+    // --- For buildings, generate static window pattern ---
+    if (type === 'building') {
+        element.windowPattern = undefined; // Will be generated on first draw
+    }
     return element;
 }
 
@@ -656,6 +721,10 @@ function updateBackgroundElements() {
         // Recycle elements that have moved off-screen
         if (element.x + element.width < -100) {
             element.x = canvas.width + Math.random() * 200;
+            // --- For buildings, reset window pattern so it is regenerated ---
+            if (element.type === 'building') {
+                element.windowPattern = undefined;
+            }
         }
     });
 }
@@ -666,12 +735,16 @@ class BackgroundElement {
         this.x = x;
         this.y = y;
         this.type = type;
-        this.width = type === 'building' ? 60 + Math.random() * 40 :
-                    type === 'cloud' ? 80 + Math.random() * 40 : 3;
-        //this.height = type === 'building' ? 80 + Math.random() * 60 :
-        //             type === 'cloud' ? 30 + Math.random() * 20 : 3;
-        this.opacity = type === 'building' ? 0.3 : type === 'cloud' ? 0.4 : 0.6;
-        this.speed = type === 'building' ? 0.5 : type === 'cloud' ? 0.3 : 0.1; // Different parallax speeds
+        if (type === 'cloud') {
+            this.width = 100 + Math.random() * 80;
+            this.opacity = 0.7;
+            this.color = rainActive ? '#888a8c' : '#ffffff';
+        } else {
+            this.width = type === 'building' ? 60 + Math.random() * 40 : 3;
+            this.opacity = type === 'building' ? 0.3 : type === 'star' ? 0.6 : 1;
+            this.color = undefined;
+        }
+        this.speed = type === 'building' ? 0.5 : type === 'cloud' ? 0.25 + Math.random() * 0.15 : 0.1;
         
         // Store static window pattern for buildings to avoid blinking
         if (this.type === 'building') {
@@ -733,8 +806,7 @@ class BackgroundElement {
                 }
             });
         } else if (this.type === 'cloud') {
-            // Static cloud
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = (rainActive ? '#888a8c' : '#ffffff');
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.width / 3, 0, Math.PI * 2);
             ctx.arc(this.x + this.width / 3, this.y, this.width / 4, 0, Math.PI * 2);
@@ -766,13 +838,15 @@ function initializeParallaxElements() {
         ));
     }
     
-    // Create clouds
-    for (let i = 0; i < 3; i++) {
-        parallaxElements.push(new BackgroundElement(
-            canvas.width + i * 300 + Math.random() * 150,
-            50 + Math.random() * 100,
-            'cloud'
-        ));
+    // Only add clouds if not night (and not transitioning to night)
+    if (!nightActive) {
+        for (let i = 0; i < 8; i++) {
+            parallaxElements.push(new BackgroundElement(
+                canvas.width + i * 180 + Math.random() * 120,
+                40 + Math.random() * 120,
+                'cloud'
+            ));
+        }
     }
     
     // Create stars
@@ -783,6 +857,34 @@ function initializeParallaxElements() {
             'star'
         ));
     }
+    // Add the moon in the background if night
+    if (nightActive) {
+        parallaxElements.push({
+            type: 'moon',
+            x: canvas.width - 120,
+            y: 80,
+            width: 90,
+            height: 90,
+            draw: function() {
+                ctx.save();
+                ctx.globalAlpha = 0.93;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.width/2, 0, Math.PI*2);
+                ctx.fillStyle = '#f7f7e6';
+                ctx.shadowColor = '#fffbe6';
+                ctx.shadowBlur = 30;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                // Craters
+                ctx.globalAlpha = 0.18;
+                ctx.beginPath(); ctx.arc(this.x-18, this.y-10, 10, 0, Math.PI*2); ctx.fillStyle = '#bdbdbd'; ctx.fill();
+                ctx.beginPath(); ctx.arc(this.x+12, this.y+8, 7, 0, Math.PI*2); ctx.fillStyle = '#bdbdbd'; ctx.fill();
+                ctx.beginPath(); ctx.arc(this.x+20, this.y-12, 5, 0, Math.PI*2); ctx.fillStyle = '#bdbdbd'; ctx.fill();
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
+        });
+    }
 }
 
 function updateParallaxElements() {
@@ -792,7 +894,17 @@ function updateParallaxElements() {
 }
 
 function drawParallaxElements() {
+    // Draw moon first if present (so it's behind stars/buildings)
+    if (nightActive) {
+        const moon = parallaxElements.find(e => e.type === 'moon');
+        if (moon) moon.draw();
+    }
     parallaxElements.forEach(element => {
+        if (element.type === 'moon') return; // Already drawn
+        if (nightActive && element.type === 'cloud') {
+            // Skip drawing clouds at night
+            return;
+        }
         element.draw();
     });
 }
@@ -845,7 +957,7 @@ function updateObstacles() {
             score++;
             obs.passed = true;
             scoreElement.textContent = `SCORE: ${score}`;
-            // REMOVED: Score-based speed increase is replaced by the gradual one
+            checkRainActivation();
         }
 
         // Collision detection
@@ -877,11 +989,237 @@ function updateObstacles() {
     }
 }
 
+// --- Night Mode ---
+let nightActive = false;
+
+// --- Rain Effect ---
+let rainActive = false;
+let rainParticles = [];
+const RAIN_PARTICLE_COUNT = 80;
+let lightningActive = false;
+let lightningTimer = 0;
+let lightningAlpha = 0;
+
+function spawnRainParticles() {
+    rainParticles = [];
+    for (let i = 0; i < RAIN_PARTICLE_COUNT; i++) {
+        rainParticles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            vy: 8 + Math.random() * 6,
+            length: 10 + Math.random() * 10,
+            opacity: 0.3 + Math.random() * 0.5
+        });
+    }
+}
+
+function updateRainParticles() {
+    for (let p of rainParticles) {
+        p.y += p.vy;
+        if (p.y > canvas.height) {
+            p.x = Math.random() * canvas.width;
+            p.y = -p.length;
+        }
+    }
+}
+
+function drawRainParticles() {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(120,180,255,0.5)';
+    ctx.lineWidth = 2;
+    for (let p of rainParticles) {
+        ctx.globalAlpha = p.opacity;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x, p.y + p.length);
+        ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+}
+
+function maybeTriggerLightning() {
+    if (rainActive && Math.random() < 0.008 && !lightningActive) {
+        lightningActive = true;
+        lightningTimer = 0;
+        lightningAlpha = 1;
+    }
+}
+
+function drawLightning() {
+    if (lightningActive) {
+        ctx.save();
+        ctx.globalAlpha = lightningAlpha;
+        ctx.fillStyle = 'rgba(255,255,255,1)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalAlpha = 1;
+        ctx.restore();
+        lightningAlpha -= 0.12;
+        lightningTimer++;
+        if (lightningAlpha <= 0) {
+            lightningActive = false;
+            lightningAlpha = 0;
+        }
+    }
+}
+
+function checkRainActivation() {
+    // Smooth rain/night activation/deactivation: after score 20, any combination of night/rain/none can occur
+    const rainStart = 20;
+    const rainEnd = 40;
+    // After score 20, randomly decide if night, rain, both, or none should be active (and keep that state until score leaves range)
+    if (score === rainStart) {
+        // Only randomize at the moment score hits 20
+        const nightRand = Math.random() < 0.5; // 50% chance for night
+        const rainRand = Math.random() < 0.5; // 50% chance for rain
+        window._nightRainState = { night: nightRand, rain: rainRand };
+    }
+    if (score >= rainStart && score <= rainEnd) {
+        if (window._nightRainState) {
+            nightActive = window._nightRainState.night;
+            if (!rainActive && window._nightRainState.rain) {
+                rainActive = true;
+                spawnRainParticles();
+            }
+            if (!window._nightRainState.rain && rainActive) {
+                // Fade out rain if it was previously on
+                for (let p of rainParticles) {
+                    p.opacity -= 0.03;
+                    if (p.opacity < 0) p.opacity = 0;
+                }
+                if (rainParticles.every(p => p.opacity <= 0.01)) {
+                    rainActive = false;
+                    rainParticles = [];
+                    lightningActive = false;
+                    lightningAlpha = 0;
+                }
+            }
+        }
+    } else {
+        // Outside the range, reset both
+        nightActive = false;
+        if (rainActive) {
+            for (let p of rainParticles) {
+                p.opacity -= 0.03;
+                if (p.opacity < 0) p.opacity = 0;
+            }
+            if (rainParticles.every(p => p.opacity <= 0.01)) {
+                rainActive = false;
+                rainParticles = [];
+                lightningActive = false;
+                lightningAlpha = 0;
+            }
+        }
+        window._nightRainState = null;
+    }
+}
+
 // --- Ground ---
+// --- Pebble Data ---
+let groundPebbles = [];
+function generateGroundPebbles() {
+    groundPebbles = [];
+    const circleCount = Math.floor(canvas.width / 22);
+    for (let i = 0; i < circleCount; i++) {
+        const x = i * (canvas.width / circleCount) + Math.random() * 12 - 6;
+        const y = GROUND_HEIGHT + 18 + Math.random() * (canvas.height - GROUND_HEIGHT - 30);
+        const radius = 5 + Math.random() * 7;
+        const shade = Math.random();
+        let color;
+        if (shade < 0.33) {
+            color = '#3d2612';
+        } else if (shade < 0.66) {
+            color = '#7a5230';
+        } else {
+            color = '#bca37a';
+        }
+        const alpha = 0.45 + Math.random() * 0.35;
+        const shadowBlur = Math.random() < 0.5 ? 0 : 6;
+        // 1 in 20 chance to be a worm
+        const isWorm = Math.random() < 0.05;
+        let wormParams = null;
+        if (isWorm) {
+            // Worm: random length, orientation, and wiggle phase
+            wormParams = {
+                length: 18 + Math.random() * 16,
+                angle: Math.random() * Math.PI * 2,
+                phase: Math.random() * Math.PI * 2,
+                color: Math.random() < 0.5 ? '#e48ca3' : '#d16e6e',
+                thickness: 3 + Math.random() * 2
+            };
+        }
+        groundPebbles.push({ x, y, radius, color, alpha, shadowBlur, isWorm, wormParams });
+    }
+}
+
 function drawGround() {
+    // Draw main ground
     ctx.fillStyle = '#654321';
     ctx.fillRect(0, GROUND_HEIGHT, canvas.width, canvas.height - GROUND_HEIGHT);
-    
+
+    // Move and draw decorative circles (pebbles, stones, worms, etc.)
+    for (const pebble of groundPebbles) {
+        // Move pebbles/worms leftward
+        pebble.x -= gameSpeed;
+        // If off screen to the left, recycle to the right
+        if (pebble.x + (pebble.isWorm ? (pebble.wormParams ? pebble.wormParams.length : 0) : pebble.radius) < 0) {
+            pebble.x = canvas.width + (pebble.isWorm ? (pebble.wormParams ? pebble.wormParams.length : 0) : pebble.radius) + Math.random() * 20;
+            pebble.y = GROUND_HEIGHT + 18 + Math.random() * (canvas.height - GROUND_HEIGHT - 30);
+            pebble.radius = 5 + Math.random() * 7;
+            const shade = Math.random();
+            if (shade < 0.33) {
+                pebble.color = '#3d2612';
+            } else if (shade < 0.66) {
+                pebble.color = '#7a5230';
+            } else {
+                pebble.color = '#bca37a';
+            }
+            pebble.alpha = 0.45 + Math.random() * 0.35;
+            pebble.shadowBlur = Math.random() < 0.5 ? 0 : 6;
+            // 1 in 20 chance to be a worm
+            pebble.isWorm = Math.random() < 0.05;
+            if (pebble.isWorm) {
+                pebble.wormParams = {
+                    length: 18 + Math.random() * 16,
+                    angle: Math.random() * Math.PI * 2,
+                    phase: Math.random() * Math.PI * 2,
+                    color: Math.random() < 0.5 ? '#e48ca3' : '#d16e6e',
+                    thickness: 3 + Math.random() * 2
+                };
+            } else {
+                pebble.wormParams = null;
+            }
+        }
+        ctx.save();
+        if (pebble.isWorm && pebble.wormParams) {
+            // Draw worm as a wavy line
+            const { length, angle, phase, color, thickness } = pebble.wormParams;
+            ctx.translate(pebble.x, pebble.y);
+            ctx.rotate(angle);
+            ctx.lineWidth = thickness;
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            for (let t = 0; t <= 1; t += 0.08) {
+                const x = t * length;
+                const y = Math.sin(phase + t * 4 * Math.PI) * 4;
+                if (t === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        } else {
+            ctx.globalAlpha = pebble.alpha;
+            ctx.beginPath();
+            ctx.arc(pebble.x, pebble.y, pebble.radius, 0, Math.PI * 2);
+            ctx.fillStyle = pebble.color;
+            ctx.shadowColor = pebble.color;
+            ctx.shadowBlur = pebble.shadowBlur;
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    // Draw grass line
     ctx.strokeStyle = '#32CD32';
     ctx.lineWidth = 10;
     ctx.beginPath();
@@ -895,7 +1233,14 @@ function animate() {
     requestAnimationFrame(animate);
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+    // Night overlay
+    if (nightActive) {
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = '#0a1633';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+    }
     // Draw background elements first (behind everything) during active gameplay
     if (!isGameOver) {
         // Update and draw parallax elements (buildings, clouds, stars)
@@ -917,6 +1262,12 @@ function animate() {
         player.draw();
     }
     
+    if (rainActive) {
+        updateRainParticles();
+        drawRainParticles();
+        maybeTriggerLightning();
+        drawLightning();
+    }
     updateParticles();
 }
 
@@ -934,6 +1285,19 @@ function startGame() {
     player.isJumping = false;
     player.isDucking = false; // Reset ducking state
     player.height = player.originalHeight; // Reset height
+    player._capeDuckTimer = 0; // Reset cape duck timer
+    
+    // Reset cape physics
+    capeAngle = 0;
+    capeAngleTarget = 0;
+    capeAngleVel = 0;
+    
+    // Rain reset
+    rainActive = false;
+    rainParticles = [];
+    
+    // Regenerate pebbles for new game (in case of resize)
+    generateGroundPebbles();
     scoreElement.textContent = `SCORE: 0`;
     
     // Clear any pending leaderboard timeout
@@ -1080,4 +1444,5 @@ document.addEventListener('DOMContentLoaded', () => {
 initTelegramApp();
 
 // Initial draw
+generateGroundPebbles();
 animate();
