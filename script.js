@@ -1292,9 +1292,13 @@ function startGame() {
     capeAngleTarget = 0;
     capeAngleVel = 0;
     
-    // Rain reset
+    // Rain and night reset
     rainActive = false;
     rainParticles = [];
+    nightActive = false;
+    lightningActive = false;
+    lightningAlpha = 0;
+    window._nightRainState = null;
     
     // Regenerate pebbles for new game (in case of resize)
     generateGroundPebbles();
