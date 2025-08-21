@@ -844,7 +844,20 @@ function generateGroundPebbles() {
         }
         const alpha = 0.45 + Math.random() * 0.35;
         const shadowBlur = Math.random() < 0.5 ? 0 : 6;
-        groundPebbles.push({ x, y, radius, color, alpha, shadowBlur });
+        // 1 in 20 chance to be a worm
+        const isWorm = Math.random() < 0.05;
+        let wormParams = null;
+        if (isWorm) {
+            // Worm: random length, orientation, and wiggle phase
+            wormParams = {
+                length: 18 + Math.random() * 16,
+                angle: Math.random() * Math.PI * 2,
+                phase: Math.random() * Math.PI * 2,
+                color: Math.random() < 0.5 ? '#e48ca3' : '#d16e6e',
+                thickness: 3 + Math.random() * 2
+            };
+        }
+        groundPebbles.push({ x, y, radius, color, alpha, shadowBlur, isWorm, wormParams });
     }
 }
 
@@ -853,13 +866,13 @@ function drawGround() {
     ctx.fillStyle = '#654321';
     ctx.fillRect(0, GROUND_HEIGHT, canvas.width, canvas.height - GROUND_HEIGHT);
 
-    // Move and draw decorative circles (pebbles, stones, etc.)
+    // Move and draw decorative circles (pebbles, stones, worms, etc.)
     for (const pebble of groundPebbles) {
-        // Move pebbles leftward
+        // Move pebbles/worms leftward
         pebble.x -= gameSpeed;
         // If off screen to the left, recycle to the right
-        if (pebble.x + pebble.radius < 0) {
-            pebble.x = canvas.width + pebble.radius + Math.random() * 20;
+        if (pebble.x + (pebble.isWorm ? (pebble.wormParams ? pebble.wormParams.length : 0) : pebble.radius) < 0) {
+            pebble.x = canvas.width + (pebble.isWorm ? (pebble.wormParams ? pebble.wormParams.length : 0) : pebble.radius) + Math.random() * 20;
             pebble.y = GROUND_HEIGHT + 18 + Math.random() * (canvas.height - GROUND_HEIGHT - 30);
             pebble.radius = 5 + Math.random() * 7;
             const shade = Math.random();
@@ -872,15 +885,46 @@ function drawGround() {
             }
             pebble.alpha = 0.45 + Math.random() * 0.35;
             pebble.shadowBlur = Math.random() < 0.5 ? 0 : 6;
+            // 1 in 20 chance to be a worm
+            pebble.isWorm = Math.random() < 0.05;
+            if (pebble.isWorm) {
+                pebble.wormParams = {
+                    length: 18 + Math.random() * 16,
+                    angle: Math.random() * Math.PI * 2,
+                    phase: Math.random() * Math.PI * 2,
+                    color: Math.random() < 0.5 ? '#e48ca3' : '#d16e6e',
+                    thickness: 3 + Math.random() * 2
+                };
+            } else {
+                pebble.wormParams = null;
+            }
         }
         ctx.save();
-        ctx.globalAlpha = pebble.alpha;
-        ctx.beginPath();
-        ctx.arc(pebble.x, pebble.y, pebble.radius, 0, Math.PI * 2);
-        ctx.fillStyle = pebble.color;
-        ctx.shadowColor = pebble.color;
-        ctx.shadowBlur = pebble.shadowBlur;
-        ctx.fill();
+        if (pebble.isWorm && pebble.wormParams) {
+            // Draw worm as a wavy line
+            const { length, angle, phase, color, thickness } = pebble.wormParams;
+            ctx.translate(pebble.x, pebble.y);
+            ctx.rotate(angle);
+            ctx.lineWidth = thickness;
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            for (let t = 0; t <= 1; t += 0.08) {
+                const x = t * length;
+                const y = Math.sin(phase + t * 4 * Math.PI) * 4;
+                if (t === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        } else {
+            ctx.globalAlpha = pebble.alpha;
+            ctx.beginPath();
+            ctx.arc(pebble.x, pebble.y, pebble.radius, 0, Math.PI * 2);
+            ctx.fillStyle = pebble.color;
+            ctx.shadowColor = pebble.color;
+            ctx.shadowBlur = pebble.shadowBlur;
+            ctx.fill();
+        }
         ctx.restore();
     }
 
