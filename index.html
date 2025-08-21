@@ -673,13 +673,15 @@
                     'building'
                 ));
             }
-            // Create more clouds (8 instead of 3)
-            for (let i = 0; i < 8; i++) {
-                parallaxElements.push(new BackgroundElement(
-                    canvas.width + i * 180 + Math.random() * 120,
-                    40 + Math.random() * 120,
-                    'cloud'
-                ));
+            // Only add clouds if not night (and not transitioning to night)
+            if (!nightActive) {
+                for (let i = 0; i < 8; i++) {
+                    parallaxElements.push(new BackgroundElement(
+                        canvas.width + i * 180 + Math.random() * 120,
+                        40 + Math.random() * 120,
+                        'cloud'
+                    ));
+                }
             }
             // Create stars
             for (let i = 0; i < 15; i++) {
@@ -688,6 +690,34 @@
                     20 + Math.random() * 150,
                     'star'
                 ));
+            }
+            // Add the moon in the background if night
+            if (nightActive) {
+                parallaxElements.push({
+                    type: 'moon',
+                    x: canvas.width - 120,
+                    y: 80,
+                    width: 90,
+                    height: 90,
+                    draw: function() {
+                        ctx.save();
+                        ctx.globalAlpha = 0.93;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.width/2, 0, Math.PI*2);
+                        ctx.fillStyle = '#f7f7e6';
+                        ctx.shadowColor = '#fffbe6';
+                        ctx.shadowBlur = 30;
+                        ctx.fill();
+                        ctx.shadowBlur = 0;
+                        // Craters
+                        ctx.globalAlpha = 0.18;
+                        ctx.beginPath(); ctx.arc(this.x-18, this.y-10, 10, 0, Math.PI*2); ctx.fillStyle = '#bdbdbd'; ctx.fill();
+                        ctx.beginPath(); ctx.arc(this.x+12, this.y+8, 7, 0, Math.PI*2); ctx.fillStyle = '#bdbdbd'; ctx.fill();
+                        ctx.beginPath(); ctx.arc(this.x+20, this.y-12, 5, 0, Math.PI*2); ctx.fillStyle = '#bdbdbd'; ctx.fill();
+                        ctx.globalAlpha = 1;
+                        ctx.restore();
+                    }
+                });
             }
         }
         
@@ -698,7 +728,17 @@
         }
         
         function drawParallaxElements() {
+            // Draw moon first if present (so it's behind stars/buildings)
+            if (nightActive) {
+                const moon = parallaxElements.find(e => e.type === 'moon');
+                if (moon) moon.draw();
+            }
             parallaxElements.forEach(element => {
+                if (element.type === 'moon') return; // Already drawn
+                if (nightActive && element.type === 'cloud') {
+                    // Skip drawing clouds at night
+                    return;
+                }
                 element.draw();
             });
         }
@@ -862,12 +902,21 @@
             }
         }
 
+        // --- Night Mode ---
+        let nightActive = false;
+
         // --- Game Loop ---
         function animate() {
             requestAnimationFrame(animate);
-            
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+            // Night overlay
+            if (nightActive) {
+                ctx.save();
+                ctx.globalAlpha = 0.45;
+                ctx.fillStyle = '#0a1633';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+            }
             // Draw background elements first (behind everything) during active gameplay
             if (!isGameOver) {
                 // Update and draw parallax elements (buildings, clouds, stars)
@@ -937,6 +986,12 @@
             // Smooth rain activation/deactivation: fade in/out and allow overlap
             const rainStart = 20;
             const rainEnd = 40;
+            // Night mode after score 5
+            if (score >= 5) {
+                nightActive = true;
+            } else {
+                nightActive = false;
+            }
             if (!rainActive && score >= rainStart && score <= rainEnd) {
                 rainActive = true;
                 spawnRainParticles();
