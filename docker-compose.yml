@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   dynogame:
-    image: ghcr.io/korjavin/dynogame:latest
+    image: ghcr.io/korjavin/dynogame:f80a311ec66d8a91c3aaec26c505da4044a25b33
     container_name: dynogame
     networks:
       - dynogame_network
