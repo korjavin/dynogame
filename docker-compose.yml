@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  dynogame:
+    image: ghcr.io/korjavin/dynogame:latest
+    container_name: dynogame
+    networks:
+      - vaultwarden_default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dynogame.rule=Host(`${DNS_NAME}`)"
+      - "traefik.http.routers.dynogame.entrypoints=websecure"
+      - "traefik.http.routers.dynogame.tls.certresolver=myresolver"
+
+    restart: unless-stopped
+
+networks:
+  vaultwarden_default:
+    external: true
