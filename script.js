@@ -760,10 +760,57 @@ const player = {
     }
 };
 
-// --- Obstacles (Missiles) ---
+// --- Obstacles (Various Types) ---
 let obstacles = [];
 const obstacleTypes = {
-    missile: { width: 80, height: 30, draw: drawMissile }
+    missile: {
+        width: 80,
+        height: 30,
+        draw: drawMissile,
+        minHeight: -80,
+        maxHeight: 0,
+        weight: 3 // Spawn weight (higher = more common)
+    },
+    bird: {
+        width: 60,
+        height: 40,
+        draw: drawBird,
+        minHeight: -120,
+        maxHeight: -60,
+        weight: 2
+    },
+    laser: {
+        width: 3,
+        height: 150,
+        draw: drawLaser,
+        minHeight: -150,
+        maxHeight: -150, // Fixed height
+        weight: 1
+    },
+    sawblade: {
+        width: 60,
+        height: 60,
+        draw: drawSawblade,
+        minHeight: -100,
+        maxHeight: -20,
+        weight: 2
+    },
+    balloon: {
+        width: 50,
+        height: 70,
+        draw: drawBalloon,
+        minHeight: -100,
+        maxHeight: -40,
+        weight: 1
+    },
+    multipart: {
+        width: 80,
+        height: 120,
+        draw: drawMultipart,
+        minHeight: -120,
+        maxHeight: -120, // Fixed position
+        weight: 1
+    }
 };
 
 // Background element drawing functions
@@ -898,10 +945,10 @@ function drawCactus(element) {
     ctx.restore();
 }
 
-function drawMissile(x, y, width, height) {
+function drawMissile(x, y, width, height, animFrame) {
     ctx.save();
     ctx.translate(x, y);
-    
+
     // Fins (now on the right)
     ctx.fillStyle = '#adb5bd';
     ctx.beginPath();
@@ -927,7 +974,236 @@ function drawMissile(x, y, width, height) {
     ctx.lineTo(20, height);
     ctx.closePath();
     ctx.fill();
-    
+
+    ctx.restore();
+}
+
+function drawBird(x, y, width, height, animFrame) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Animated wing flap based on time
+    const wingAngle = Math.sin(animFrame * 0.15) * 0.4;
+
+    // Body (brown bird)
+    ctx.fillStyle = '#8B4513';
+    ctx.beginPath();
+    ctx.ellipse(width / 2, height / 2, width * 0.3, height * 0.25, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(width * 0.2, height * 0.35, width * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Beak
+    ctx.fillStyle = '#FFA500';
+    ctx.beginPath();
+    ctx.moveTo(width * 0.05, height * 0.35);
+    ctx.lineTo(-5, height * 0.3);
+    ctx.lineTo(width * 0.05, height * 0.4);
+    ctx.closePath();
+    ctx.fill();
+
+    // Eye
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.arc(width * 0.18, height * 0.32, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Left wing
+    ctx.fillStyle = '#654321';
+    ctx.save();
+    ctx.translate(width * 0.35, height * 0.4);
+    ctx.rotate(wingAngle);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, width * 0.35, height * 0.2, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Right wing
+    ctx.save();
+    ctx.translate(width * 0.35, height * 0.6);
+    ctx.rotate(-wingAngle);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, width * 0.35, height * 0.2, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+}
+
+function drawLaser(x, y, width, height, animFrame) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Pulsing laser beam
+    const pulse = 0.7 + Math.sin(animFrame * 0.2) * 0.3;
+
+    // Laser emitter (top)
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(-10, 0, 20, 15);
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(-8, 0, 16, 12);
+
+    // Laser beam
+    ctx.fillStyle = `rgba(255, 0, 0, ${pulse * 0.8})`;
+    ctx.fillRect(0, 15, width, height - 15);
+
+    // Laser glow
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = `rgba(255, 100, 100, ${pulse * 0.4})`;
+    ctx.fillRect(-5, 15, width + 10, height - 15);
+    ctx.shadowBlur = 0;
+
+    ctx.restore();
+}
+
+function drawSawblade(x, y, width, height, animFrame) {
+    ctx.save();
+    ctx.translate(x + width / 2, y + height / 2);
+
+    // Rotation animation
+    const rotation = animFrame * 0.15;
+    ctx.rotate(rotation);
+
+    const radius = width / 2;
+    const teeth = 12;
+
+    // Draw sawblade teeth
+    ctx.fillStyle = '#708090';
+    ctx.strokeStyle = '#404040';
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+        const angle = (Math.PI * 2 / teeth) * i;
+        const nextAngle = (Math.PI * 2 / teeth) * (i + 1);
+
+        // Tooth tip
+        const tipX = Math.cos(angle + Math.PI / teeth) * (radius + 8);
+        const tipY = Math.sin(angle + Math.PI / teeth) * (radius + 8);
+
+        // Inner points
+        const x1 = Math.cos(angle) * (radius - 2);
+        const y1 = Math.sin(angle) * (radius - 2);
+        const x2 = Math.cos(nextAngle) * (radius - 2);
+        const y2 = Math.sin(nextAngle) * (radius - 2);
+
+        if (i === 0) {
+            ctx.moveTo(x1, y1);
+        }
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(x2, y2);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Inner circle
+    ctx.fillStyle = '#505050';
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Center hole
+    ctx.fillStyle = '#202020';
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function drawBalloon(x, y, width, height, animFrame) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Bobbing animation
+    const bob = Math.sin(animFrame * 0.08) * 3;
+
+    // String
+    ctx.strokeStyle = '#666666';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(width / 2, height * 0.7 + bob);
+    ctx.lineTo(width / 2, height + 10);
+    ctx.stroke();
+
+    // Balloon body (gradient)
+    const gradient = ctx.createRadialGradient(
+        width / 2 - 10,
+        height * 0.3 + bob,
+        5,
+        width / 2,
+        height / 2 + bob,
+        width / 2
+    );
+    gradient.addColorStop(0, '#ff69b4');
+    gradient.addColorStop(1, '#ff1493');
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.ellipse(width / 2, height * 0.4 + bob, width * 0.45, height * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Highlight
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.beginPath();
+    ctx.ellipse(width * 0.35, height * 0.25 + bob, width * 0.15, height * 0.12, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Balloon knot
+    ctx.fillStyle = '#cc1177';
+    ctx.beginPath();
+    ctx.ellipse(width / 2, height * 0.7 + bob, width * 0.1, height * 0.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function drawMultipart(x, y, width, height, animFrame) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Top obstacle (must jump over)
+    ctx.fillStyle = '#8B0000';
+    ctx.fillRect(0, 0, width, height * 0.3);
+    ctx.strokeStyle = '#400000';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, width, height * 0.3);
+
+    // Hazard stripes on top
+    ctx.fillStyle = '#FFD700';
+    for (let i = 0; i < 4; i++) {
+        ctx.fillRect(i * width / 4, 0, width / 8, height * 0.3);
+    }
+
+    // Gap in middle (safe zone)
+    // Player can be here briefly
+
+    // Bottom obstacle (must duck under)
+    ctx.fillStyle = '#00008B';
+    ctx.fillRect(0, height * 0.7, width, height * 0.3);
+    ctx.strokeStyle = '#000040';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, height * 0.7, width, height * 0.3);
+
+    // Hazard stripes on bottom
+    ctx.fillStyle = '#FFD700';
+    for (let i = 0; i < 4; i++) {
+        ctx.fillRect(i * width / 4 + width / 8, height * 0.7, width / 8, height * 0.3);
+    }
+
+    // Warning sign
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('!', width / 2, height * 0.15);
+    ctx.fillText('!', width / 2, height * 0.85);
+
     ctx.restore();
 }
 
@@ -1171,20 +1447,84 @@ function drawBackgroundElements() {
 }
 
 function spawnObstacle() {
-    const type = obstacleTypes.missile;
-    const spawnHeight = GROUND_HEIGHT - type.height - Math.random() * 80;
+    // Weighted random selection of obstacle type
+    const typeKeys = Object.keys(obstacleTypes);
+    const totalWeight = typeKeys.reduce((sum, key) => sum + obstacleTypes[key].weight, 0);
+    let random = Math.random() * totalWeight;
+
+    let selectedType = null;
+    for (const key of typeKeys) {
+        random -= obstacleTypes[key].weight;
+        if (random <= 0) {
+            selectedType = obstacleTypes[key];
+            break;
+        }
+    }
+
+    // Fallback to missile if selection fails
+    if (!selectedType) selectedType = obstacleTypes.missile;
+
+    // Calculate spawn height based on obstacle type
+    const heightRange = selectedType.maxHeight - selectedType.minHeight;
+    const spawnHeight = GROUND_HEIGHT + selectedType.minHeight - (Math.random() * heightRange);
+
     obstacles.push({
         x: canvas.width,
         y: spawnHeight,
-        width: type.width,
-        height: type.height,
-        draw: type.draw,
-        passed: false
+        width: selectedType.width,
+        height: selectedType.height,
+        draw: selectedType.draw,
+        passed: false,
+        animFrame: 0 // Animation frame counter for animated obstacles
     });
 }
 
 let obstacleTimer = 0;
 let nextObstacleTime = 100;
+
+// Helper function to check collision with an obstacle
+function checkObstacleCollision(obs, playerLeft, playerRight, playerTop, playerBottom) {
+    const obsLeft = obs.x;
+    const obsRight = obs.x + obs.width;
+
+    // Check if this is a multi-part obstacle
+    if (obs.draw === drawMultipart) {
+        // Multi-part obstacle has two sections: top and bottom with a gap in middle
+        const topSectionTop = obs.y;
+        const topSectionBottom = obs.y + obs.height * 0.3;
+        const bottomSectionTop = obs.y + obs.height * 0.7;
+        const bottomSectionBottom = obs.y + obs.height;
+
+        // Check collision with top section
+        const topCollision = (
+            playerLeft < obsRight &&
+            playerRight > obsLeft &&
+            playerTop < topSectionBottom &&
+            playerBottom > topSectionTop
+        );
+
+        // Check collision with bottom section
+        const bottomCollision = (
+            playerLeft < obsRight &&
+            playerRight > obsLeft &&
+            playerTop < bottomSectionBottom &&
+            playerBottom > bottomSectionTop
+        );
+
+        return topCollision || bottomCollision;
+    } else {
+        // Standard rectangular collision
+        const obsTop = obs.y;
+        const obsBottom = obs.y + obs.height;
+
+        return (
+            playerLeft < obsRight &&
+            playerRight > obsLeft &&
+            playerTop < obsBottom &&
+            playerBottom > obsTop
+        );
+    }
+}
 
 function updateObstacles() {
     if (player.crashed) return;
@@ -1203,7 +1543,8 @@ function updateObstacles() {
     for (let i = obstacles.length - 1; i >= 0; i--) {
         const obs = obstacles[i];
         obs.x -= gameSpeed;
-        obs.draw(obs.x, obs.y, obs.width, obs.height);
+        obs.animFrame++; // Increment animation frame
+        obs.draw(obs.x, obs.y, obs.width, obs.height, obs.animFrame);
 
         if (!obs.passed && obs.x + obs.width < player.x) {
             // Increment combo
@@ -1271,17 +1612,9 @@ function updateObstacles() {
         const playerLeft = player.x;
         const playerRight = player.x + player.width;
 
-        const obsTop = obs.y;
-        const obsBottom = obs.y + obs.height;
-        const obsLeft = obs.x;
-        const obsRight = obs.x + obs.width;
-
         if (
             !player.crashed &&
-            playerLeft < obsRight &&
-            playerRight > obsLeft &&
-            playerTop < obsBottom &&
-            playerBottom > obsTop
+            checkObstacleCollision(obs, playerLeft, playerRight, playerTop, playerBottom)
         ) {
             // Check if player is invincible
             if (player.invincible) {
@@ -1862,7 +2195,10 @@ function animate() {
         drawActivePowerUpEffects();
         player.update();
     } else {
-        obstacles.forEach(obs => obs.draw(obs.x, obs.y, obs.width, obs.height));
+        obstacles.forEach(obs => {
+            obs.animFrame++; // Keep animating during game over
+            obs.draw(obs.x, obs.y, obs.width, obs.height, obs.animFrame);
+        });
         player.draw();
     }
 
