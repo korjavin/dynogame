@@ -5,7 +5,7 @@ services:
     image: ghcr.io/korjavin/dynogame:latest
     container_name: dynogame
     networks:
-      - vaultwarden_default
+      - dynogame_network
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.dynogame.rule=Host(`${DNS_NAME}`)"
@@ -15,5 +15,5 @@ services:
     restart: unless-stopped
 
 networks:
-  vaultwarden_default:
-    external: true
+  dynogame_network:
+    driver: bridge
