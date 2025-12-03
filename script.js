@@ -3,6 +3,89 @@ const ctx = canvas.getContext('2d');
 const infoOverlay = document.getElementById('info-overlay');
 const scoreElement = document.getElementById('score');
 
+// --- Sound System ---
+let soundEnabled = true;
+let audioContext = null;
+
+// Initialize audio context (must be after user interaction)
+function initAudioContext() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioContext;
+}
+
+// Sound generation functions using Web Audio API
+function playJumpSound() {
+    if (!soundEnabled) return;
+    const ctx = initAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    // Jump sound: rising pitch
+    oscillator.frequency.setValueAtTime(200, ctx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.1);
+
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.1);
+}
+
+function playCollisionSound() {
+    if (!soundEnabled) return;
+    const ctx = initAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    // Collision sound: low explosion-like sound
+    oscillator.type = 'sawtooth';
+    oscillator.frequency.setValueAtTime(150, ctx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.3);
+
+    gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.3);
+}
+
+function playScoreBeep() {
+    if (!soundEnabled) return;
+    const ctx = initAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    // Score beep: pleasant two-tone beep
+    oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+    oscillator.frequency.setValueAtTime(1000, ctx.currentTime + 0.05);
+
+    gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.15);
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    const btn = document.getElementById('sound-toggle-btn');
+    if (btn) {
+        btn.textContent = soundEnabled ? '🔊' : '🔇';
+        btn.title = soundEnabled ? 'Sound On (click to mute)' : 'Sound Off (click to unmute)';
+    }
+}
+
 // Telegram WebApp integration
 let isTelegramApp = false;
 let telegramUser = null;
@@ -489,6 +572,7 @@ const player = {
         if (!this.isJumping && !this.isDucking && !isGameOver) {
             this.isJumping = true;
             this.velocityY = -20;
+            playJumpSound();
         }
     },
     duck() {
@@ -957,6 +1041,12 @@ function updateObstacles() {
             score++;
             obs.passed = true;
             scoreElement.textContent = `SCORE: ${score}`;
+
+            // Play beep sound every 10 points
+            if (score % 10 === 0) {
+                playScoreBeep();
+            }
+
             checkRainActivation();
         }
 
@@ -979,6 +1069,7 @@ function updateObstacles() {
             playerBottom > obsTop
         ) {
             player.crashed = true;
+            playCollisionSound();
             createExplosion(player.x + player.width / 2, player.y - player.height / 2);
             setTimeout(gameOver, 1000);
         }
@@ -1436,6 +1527,15 @@ if (showLeaderboardBtn) {
     showLeaderboardBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         showLeaderboard();
+    });
+}
+
+// Sound toggle button event listener
+const soundToggleBtn = document.getElementById('sound-toggle-btn');
+if (soundToggleBtn) {
+    soundToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSound();
     });
 }
 
