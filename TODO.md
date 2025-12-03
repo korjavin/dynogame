@@ -49,8 +49,8 @@ Make duck mechanic more essential by adding obstacles that specifically require 
 
 ---
 
-### 🔲 Collectible Power-ups
-**Status**: Not Started
+### ✅ Collectible Power-ups
+**Status**: Completed
 **Difficulty**: Medium
 **Impact**: High
 
@@ -374,10 +374,29 @@ Track gameplay metrics for data-driven improvements.
 
 ## 📋 Completed Features
 
+### ✅ Combo System
+- Tracks consecutive successful dodges
+- Score multipliers (×1.5, ×2.0, ×3.0)
+- Visual counter with color coding
+- Particle effects at milestones
+- Audio feedback for achievements
+- Best combo tracking
+
+### ✅ Collectible Power-ups
+- Three power-up types (Shield, Slow Motion, Score Multiplier)
+- Floating collection with glow effects
+- Active power-up UI indicators with timers
+- Visual effects for each power-up type
+- Sound effects for collection and activation
+- Smart spawning system (10-15 second intervals)
+- Power-up stacking and duration extension
+
 ### ✅ Sound System
 - Jump sounds
 - Collision explosions
 - Score milestone beeps
+- Power-up collection and activation sounds
+- Combo achievement sounds
 - Sound toggle button
 - Web Audio API implementation
 
@@ -400,6 +419,10 @@ Track gameplay metrics for data-driven improvements.
 - Rain and lightning effects
 - Animated ground (pebbles, worms)
 - Particle explosions
+- Power-up glow and sparkle effects
+- Shield bubble animation
+- Slow-motion purple tint
+- Score multiplier golden glow
 
 ---
 
