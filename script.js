@@ -2,6 +2,9 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const infoOverlay = document.getElementById('info-overlay');
 const scoreElement = document.getElementById('score');
+const comboElement = document.getElementById('combo');
+const comboCountElement = document.getElementById('combo-count');
+const comboMultiplierElement = document.getElementById('combo-multiplier');
 
 // --- Sound System ---
 let soundEnabled = true;
@@ -75,6 +78,31 @@ function playScoreBeep() {
 
     oscillator.start(ctx.currentTime);
     oscillator.stop(ctx.currentTime + 0.15);
+}
+
+function playComboSound(comboLevel) {
+    if (!soundEnabled) return;
+    const ctx = initAudioContext();
+
+    // Create a more exciting sound for higher combos
+    const frequencies = [600, 800, 1000]; // Ascending notes
+    const duration = 0.1;
+    const spacing = 0.08;
+
+    frequencies.forEach((freq, index) => {
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        oscillator.frequency.setValueAtTime(freq, ctx.currentTime + index * spacing);
+        gainNode.gain.setValueAtTime(0.3, ctx.currentTime + index * spacing);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + index * spacing + duration);
+
+        oscillator.start(ctx.currentTime + index * spacing);
+        oscillator.stop(ctx.currentTime + index * spacing + duration);
+    });
 }
 
 function toggleSound() {
@@ -307,6 +335,10 @@ const GRAVITY = 0.8;
 let GROUND_HEIGHT = gameHeight * 0.85;
 let gameSpeed = 5;
 let score = 0;
+let comboCount = 0;
+let comboMultiplier = 1.0;
+let lastComboMilestone = 0;
+let bestCombo = 0;
 let isGameOver = true;
 
 // --- Explosion Particles ---
@@ -350,7 +382,27 @@ function createExplosion(x, y) {
             vy: (Math.random() - 0.5) * 15,
             size: Math.random() * 8 + 3,
             color: ['#e63946', '#f1c27d', 'white'][Math.floor(Math.random() * 3)],
-            life: 60 // lifespan in frames
+            life: 60, // lifespan in frames
+            type: 'explosion'
+        });
+    }
+}
+
+function createComboEffect() {
+    // Create burst of golden particles at the combo display location
+    const comboX = canvas.width - 100;
+    const comboY = 100;
+
+    for (let i = 0; i < 20; i++) {
+        particles.push({
+            x: comboX,
+            y: comboY,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8,
+            size: Math.random() * 6 + 2,
+            color: ['#fbbf24', '#f59e0b', '#fef3c7'][Math.floor(Math.random() * 3)],
+            life: 40,
+            type: 'combo'
         });
     }
 }
@@ -1038,9 +1090,56 @@ function updateObstacles() {
         obs.draw(obs.x, obs.y, obs.width, obs.height);
 
         if (!obs.passed && obs.x + obs.width < player.x) {
-            score++;
+            // Increment combo
+            comboCount++;
+
+            // Update best combo
+            if (comboCount > bestCombo) {
+                bestCombo = comboCount;
+            }
+
+            // Calculate combo multiplier
+            if (comboCount >= 20) {
+                comboMultiplier = 3.0;
+            } else if (comboCount >= 10) {
+                comboMultiplier = 2.0;
+            } else if (comboCount >= 5) {
+                comboMultiplier = 1.5;
+            } else {
+                comboMultiplier = 1.0;
+            }
+
+            // Check for combo milestone achievements
+            if ((comboCount === 5 || comboCount === 10 || comboCount === 20) && comboCount > lastComboMilestone) {
+                lastComboMilestone = comboCount;
+                playComboSound(comboCount);
+                // Create visual effect for combo milestone
+                createComboEffect();
+            }
+
+            // Add points with multiplier
+            const pointsEarned = Math.floor(1 * comboMultiplier);
+            score += pointsEarned;
             obs.passed = true;
+
+            // Update score display
             scoreElement.textContent = `SCORE: ${score}`;
+
+            // Update combo display
+            if (comboCount >= 3) {
+                comboElement.style.display = 'block';
+                comboCountElement.textContent = comboCount;
+                comboMultiplierElement.textContent = comboMultiplier.toFixed(1);
+
+                // Add pulsing animation for high combos
+                if (comboCount >= 10) {
+                    comboElement.style.fontSize = '2.2rem';
+                    comboElement.style.color = comboCount >= 20 ? '#a855f7' : '#f59e0b';
+                    setTimeout(() => {
+                        comboElement.style.fontSize = '1.8rem';
+                    }, 150);
+                }
+            }
 
             // Play beep sound every 10 points
             if (score % 10 === 0) {
@@ -1071,6 +1170,13 @@ function updateObstacles() {
             player.crashed = true;
             playCollisionSound();
             createExplosion(player.x + player.width / 2, player.y - player.height / 2);
+
+            // Reset combo on collision
+            comboCount = 0;
+            comboMultiplier = 1.0;
+            lastComboMilestone = 0;
+            comboElement.style.display = 'none';
+
             setTimeout(gameOver, 1000);
         }
 
@@ -1370,6 +1476,10 @@ function startGame() {
     backgroundElements = []; // Clear background elements when starting new game
     parallaxElements = []; // Clear parallax elements when starting new game
     score = 0;
+    comboCount = 0;
+    comboMultiplier = 1.0;
+    lastComboMilestone = 0;
+    bestCombo = 0;
     gameSpeed = 5; // Speed resets on start
     obstacles = [];
     player.y = GROUND_HEIGHT;
@@ -1377,12 +1487,12 @@ function startGame() {
     player.isDucking = false; // Reset ducking state
     player.height = player.originalHeight; // Reset height
     player._capeDuckTimer = 0; // Reset cape duck timer
-    
+
     // Reset cape physics
     capeAngle = 0;
     capeAngleTarget = 0;
     capeAngleVel = 0;
-    
+
     // Rain and night reset
     rainActive = false;
     rainParticles = [];
@@ -1390,24 +1500,25 @@ function startGame() {
     lightningActive = false;
     lightningAlpha = 0;
     window._nightRainState = null;
-    
+
     // Regenerate pebbles for new game (in case of resize)
     generateGroundPebbles();
     scoreElement.textContent = `SCORE: 0`;
-    
+    comboElement.style.display = 'none';
+
     // Clear any pending leaderboard timeout
     if (leaderboardTimeout) {
         clearTimeout(leaderboardTimeout);
         leaderboardTimeout = null;
     }
-    
+
     // Hide leaderboard if it's showing
     hideLeaderboard();
-    
+
     // Initialize background elements for active gameplay
     initializeBackgroundElements();
     initializeParallaxElements();
-    
+
     infoOverlay.style.opacity = '0';
     infoOverlay.style.pointerEvents = 'none';
 }
@@ -1421,9 +1532,13 @@ function gameOver() {
     }
     
     infoOverlay.querySelector('h1').textContent = 'GAME OVER!';
-    
+
     // Update the message based on whether we're in Telegram
-    let message = `Your score: ${score}. Tap to restart.`;
+    let message = `Your score: ${score}`;
+    if (bestCombo >= 5) {
+        message += ` | Best combo: ${bestCombo}×`;
+    }
+    message += '. Tap to restart.';
     if (isTelegramApp && telegramUser) {
         message += ' Tap leaderboard to see top players!';
     }
