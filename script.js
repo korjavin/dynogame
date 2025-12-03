@@ -5,6 +5,7 @@ const scoreElement = document.getElementById('score');
 const comboElement = document.getElementById('combo');
 const comboCountElement = document.getElementById('combo-count');
 const comboMultiplierElement = document.getElementById('combo-multiplier');
+const activePowerupsElement = document.getElementById('active-powerups');
 
 // --- Sound System ---
 let soundEnabled = true;
@@ -103,6 +104,72 @@ function playComboSound(comboLevel) {
         oscillator.start(ctx.currentTime + index * spacing);
         oscillator.stop(ctx.currentTime + index * spacing + duration);
     });
+}
+
+function playPowerupCollectSound() {
+    if (!soundEnabled) return;
+    const ctx = initAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    // Powerup sound: sparkly upward sweep
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(400, ctx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.2);
+
+    gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.2);
+}
+
+function playPowerupActivateSound(type) {
+    if (!soundEnabled) return;
+    const ctx = initAudioContext();
+
+    if (type === 'shield') {
+        // Shield: low protective hum
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(150, ctx.currentTime);
+        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.3);
+    } else if (type === 'slowmo') {
+        // Slow-mo: descending whoosh
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.4);
+        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.4);
+    } else if (type === 'multiplier') {
+        // Multiplier: cheerful chime
+        [523, 659, 784].forEach((freq, i) => {
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            oscillator.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.05);
+            gainNode.gain.setValueAtTime(0.25, ctx.currentTime + i * 0.05);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.05 + 0.15);
+            oscillator.start(ctx.currentTime + i * 0.05);
+            oscillator.stop(ctx.currentTime + i * 0.05 + 0.15);
+        });
+    }
 }
 
 function toggleSound() {
@@ -341,9 +408,42 @@ let lastComboMilestone = 0;
 let bestCombo = 0;
 let isGameOver = true;
 
+// --- Power-ups System ---
+let powerUps = [];
+let activePowerUps = [];
+let powerUpSpawnTimer = 0;
+let powerUpSpawnInterval = 600; // Spawn every ~12 seconds at 60fps
+let baseGameSpeed = 5;
+let scoreMultiplierFromPowerup = 1.0;
+
 // --- Explosion Particles ---
 let particles = [];
 const PARTICLE_COUNT = 30;
+
+// Power-up types configuration
+const powerUpTypes = {
+    shield: {
+        name: 'Shield',
+        duration: 300, // 5 seconds at 60fps
+        color: '#60a5fa',
+        icon: '🛡️',
+        effect: 'invincibility'
+    },
+    slowmo: {
+        name: 'Slow Motion',
+        duration: 180, // 3 seconds at 60fps
+        color: '#8b5cf6',
+        icon: '⏱️',
+        effect: 'slowdown'
+    },
+    multiplier: {
+        name: 'Score x2',
+        duration: 600, // 10 seconds at 60fps
+        color: '#fbbf24',
+        icon: '⭐',
+        effect: 'doublescore'
+    }
+};
 
 // --- Background Elements for Active Gameplay ---
 let backgroundElements = [];
@@ -403,6 +503,22 @@ function createComboEffect() {
             color: ['#fbbf24', '#f59e0b', '#fef3c7'][Math.floor(Math.random() * 3)],
             life: 40,
             type: 'combo'
+        });
+    }
+}
+
+function createPowerupCollectionEffect(x, y, color) {
+    // Create sparkle effect when collecting power-up
+    for (let i = 0; i < 15; i++) {
+        particles.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 0.5) * 6,
+            size: Math.random() * 5 + 2,
+            color: color,
+            life: 30,
+            type: 'powerup'
         });
     }
 }
@@ -1117,8 +1233,8 @@ function updateObstacles() {
                 createComboEffect();
             }
 
-            // Add points with multiplier
-            const pointsEarned = Math.floor(1 * comboMultiplier);
+            // Add points with multipliers (combo + power-up)
+            const pointsEarned = Math.floor(1 * comboMultiplier * scoreMultiplierFromPowerup);
             score += pointsEarned;
             obs.passed = true;
 
@@ -1167,22 +1283,311 @@ function updateObstacles() {
             playerTop < obsBottom &&
             playerBottom > obsTop
         ) {
-            player.crashed = true;
-            playCollisionSound();
-            createExplosion(player.x + player.width / 2, player.y - player.height / 2);
+            // Check if player is invincible
+            if (player.invincible) {
+                // Pass through obstacle safely
+                obs.passed = true;
+            } else {
+                player.crashed = true;
+                playCollisionSound();
+                createExplosion(player.x + player.width / 2, player.y - player.height / 2);
 
-            // Reset combo on collision
-            comboCount = 0;
-            comboMultiplier = 1.0;
-            lastComboMilestone = 0;
-            comboElement.style.display = 'none';
+                // Reset combo on collision
+                comboCount = 0;
+                comboMultiplier = 1.0;
+                lastComboMilestone = 0;
+                comboElement.style.display = 'none';
 
-            setTimeout(gameOver, 1000);
+                setTimeout(gameOver, 1000);
+            }
         }
 
         if (obs.x + obs.width < -50) { 
             obstacles.splice(i, 1);
         }
+    }
+}
+
+// --- Power-ups System ---
+function spawnPowerUp() {
+    const types = Object.keys(powerUpTypes);
+    const type = types[Math.floor(Math.random() * types.length)];
+    const config = powerUpTypes[type];
+
+    const spawnY = GROUND_HEIGHT - 100 - Math.random() * 150;
+
+    powerUps.push({
+        x: canvas.width,
+        y: spawnY,
+        width: 40,
+        height: 40,
+        type: type,
+        config: config,
+        bobOffset: Math.random() * Math.PI * 2, // For floating animation
+        collected: false
+    });
+}
+
+function drawPowerUp(powerUp) {
+    if (powerUp.collected) return;
+
+    ctx.save();
+
+    // Bobbing animation
+    const bob = Math.sin(Date.now() * 0.005 + powerUp.bobOffset) * 5;
+    const x = powerUp.x + powerUp.width / 2;
+    const y = powerUp.y + powerUp.height / 2 + bob;
+
+    // Glow effect
+    ctx.shadowColor = powerUp.config.color;
+    ctx.shadowBlur = 20;
+
+    // Background circle
+    ctx.fillStyle = powerUp.config.color;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.arc(x, y, powerUp.width / 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner glow
+    ctx.globalAlpha = 0.4;
+    ctx.beginPath();
+    ctx.arc(x, y, powerUp.width / 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+
+    // Icon
+    ctx.font = '24px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(powerUp.config.icon, x, y);
+
+    // Rotating sparkles
+    const sparkles = 3;
+    const rotation = Date.now() * 0.002;
+    ctx.fillStyle = 'white';
+    for (let i = 0; i < sparkles; i++) {
+        const angle = (Math.PI * 2 / sparkles) * i + rotation;
+        const sparkleX = x + Math.cos(angle) * (powerUp.width / 2 + 10);
+        const sparkleY = y + Math.sin(angle) * (powerUp.width / 2 + 10);
+        ctx.beginPath();
+        ctx.arc(sparkleX, sparkleY, 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.restore();
+}
+
+function updatePowerUps() {
+    if (player.crashed) return;
+
+    // Spawn new power-ups
+    powerUpSpawnTimer++;
+    if (powerUpSpawnTimer > powerUpSpawnInterval) {
+        spawnPowerUp();
+        powerUpSpawnTimer = 0;
+        powerUpSpawnInterval = 600 + Math.random() * 300; // 10-15 seconds
+    }
+
+    // Update and draw power-ups
+    for (let i = powerUps.length - 1; i >= 0; i--) {
+        const powerUp = powerUps[i];
+
+        if (powerUp.collected) {
+            powerUps.splice(i, 1);
+            continue;
+        }
+
+        powerUp.x -= gameSpeed * 0.7; // Move slower than obstacles
+        drawPowerUp(powerUp);
+
+        // Check collision with player
+        const dist = Math.hypot(
+            (powerUp.x + powerUp.width / 2) - (player.x + player.width / 2),
+            (powerUp.y + powerUp.height / 2) - (player.y - player.height / 2)
+        );
+
+        if (dist < (powerUp.width / 2 + player.width / 2)) {
+            // Collect power-up
+            powerUp.collected = true;
+            playPowerupCollectSound();
+            createPowerupCollectionEffect(
+                powerUp.x + powerUp.width / 2,
+                powerUp.y + powerUp.height / 2,
+                powerUp.config.color
+            );
+            activatePowerUp(powerUp.type);
+        }
+
+        // Remove off-screen power-ups
+        if (powerUp.x + powerUp.width < -50) {
+            powerUps.splice(i, 1);
+        }
+    }
+
+    // Update active power-ups
+    for (let i = activePowerUps.length - 1; i >= 0; i--) {
+        const active = activePowerUps[i];
+        active.remainingDuration--;
+
+        if (active.remainingDuration <= 0) {
+            deactivatePowerUp(active);
+            activePowerUps.splice(i, 1);
+        }
+    }
+
+    updatePowerUpUI();
+}
+
+function activatePowerUp(type) {
+    const config = powerUpTypes[type];
+
+    // Check if already active - extend duration if so
+    const existing = activePowerUps.find(p => p.type === type);
+    if (existing) {
+        existing.remainingDuration = Math.max(existing.remainingDuration, config.duration);
+        return;
+    }
+
+    // Add new active power-up
+    activePowerUps.push({
+        type: type,
+        config: config,
+        remainingDuration: config.duration,
+        maxDuration: config.duration
+    });
+
+    // Apply effect
+    playPowerupActivateSound(type);
+
+    if (type === 'shield') {
+        player.invincible = true;
+    } else if (type === 'slowmo') {
+        baseGameSpeed = gameSpeed;
+        gameSpeed *= 0.5;
+    } else if (type === 'multiplier') {
+        scoreMultiplierFromPowerup = 2.0;
+    }
+}
+
+function deactivatePowerUp(active) {
+    const type = active.type;
+
+    if (type === 'shield') {
+        player.invincible = false;
+    } else if (type === 'slowmo') {
+        // Don't restore to baseGameSpeed since game speed increases over time
+        gameSpeed *= 2.0; // Double current speed to compensate
+    } else if (type === 'multiplier') {
+        scoreMultiplierFromPowerup = 1.0;
+    }
+}
+
+function updatePowerUpUI() {
+    if (!activePowerupsElement) return;
+
+    // Clear existing UI
+    activePowerupsElement.innerHTML = '';
+
+    // Add UI for each active power-up
+    activePowerUps.forEach(active => {
+        const progress = active.remainingDuration / active.maxDuration;
+        const seconds = Math.ceil(active.remainingDuration / 60);
+
+        const powerupUI = document.createElement('div');
+        powerupUI.style.cssText = `
+            background: ${active.config.color};
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            position: relative;
+            overflow: hidden;
+        `;
+
+        // Progress bar background
+        const progressBar = document.createElement('div');
+        progressBar.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: ${progress * 100}%;
+            background: rgba(255, 255, 255, 0.3);
+            transition: width 0.1s linear;
+        `;
+
+        powerupUI.appendChild(progressBar);
+
+        // Content
+        const content = document.createElement('div');
+        content.style.cssText = 'position: relative; z-index: 1; display: flex; align-items: center; gap: 6px;';
+        content.innerHTML = `<span>${active.config.icon}</span><span>${seconds}s</span>`;
+        powerupUI.appendChild(content);
+
+        activePowerupsElement.appendChild(powerupUI);
+    });
+}
+
+function drawActivePowerUpEffects() {
+    // Draw visual effects for active power-ups
+
+    // Shield effect
+    if (player.invincible && !player.crashed) {
+        ctx.save();
+        ctx.globalAlpha = 0.3 + Math.sin(Date.now() * 0.01) * 0.1;
+        ctx.strokeStyle = '#60a5fa';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#60a5fa';
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(
+            player.x + player.width / 2,
+            player.y - player.height / 2,
+            player.width * 0.8,
+            0,
+            Math.PI * 2
+        );
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Slow-mo effect (blue tint)
+    const slowmoActive = activePowerUps.find(p => p.type === 'slowmo');
+    if (slowmoActive) {
+        ctx.save();
+        ctx.globalAlpha = 0.1;
+        ctx.fillStyle = '#8b5cf6';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+    }
+
+    // Multiplier effect (golden glow on player)
+    const multiplierActive = activePowerUps.find(p => p.type === 'multiplier');
+    if (multiplierActive && !player.crashed) {
+        ctx.save();
+        ctx.globalAlpha = 0.2 + Math.sin(Date.now() * 0.015) * 0.1;
+        ctx.fillStyle = '#fbbf24';
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 25;
+        ctx.beginPath();
+        ctx.arc(
+            player.x + player.width / 2,
+            player.y - player.height / 2,
+            player.width * 0.9,
+            0,
+            Math.PI * 2
+        );
+        ctx.fill();
+        ctx.restore();
     }
 }
 
@@ -1453,12 +1858,14 @@ function animate() {
     
     if (!isGameOver) {
         updateObstacles();
+        updatePowerUps();
+        drawActivePowerUpEffects();
         player.update();
     } else {
         obstacles.forEach(obs => obs.draw(obs.x, obs.y, obs.width, obs.height));
         player.draw();
     }
-    
+
     if (rainActive) {
         updateRainParticles();
         drawRainParticles();
@@ -1472,6 +1879,7 @@ function animate() {
 function startGame() {
     isGameOver = false;
     player.crashed = false;
+    player.invincible = false; // Reset invincibility
     particles = [];
     backgroundElements = []; // Clear background elements when starting new game
     parallaxElements = []; // Clear parallax elements when starting new game
@@ -1481,7 +1889,13 @@ function startGame() {
     lastComboMilestone = 0;
     bestCombo = 0;
     gameSpeed = 5; // Speed resets on start
+    baseGameSpeed = 5;
+    scoreMultiplierFromPowerup = 1.0;
     obstacles = [];
+    powerUps = []; // Clear power-ups
+    activePowerUps = []; // Clear active power-ups
+    powerUpSpawnTimer = 0;
+    powerUpSpawnInterval = 600; // Reset spawn timer
     player.y = GROUND_HEIGHT;
     player.isJumping = false;
     player.isDucking = false; // Reset ducking state

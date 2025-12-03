@@ -15,6 +15,11 @@ The game is inspired by the popular Chrome dinosaur game but with a humorous twi
 ### Core Gameplay
 - **Dual Controls**: Jump over or duck under obstacles for varied gameplay
 - **Progressive Difficulty**: Game speed gradually increases the longer you play
+- **Combo System**: Build combos for score multipliers (×1.5 at 5, ×2 at 10, ×3 at 20+)
+- **Collectible Power-ups**: Three strategic power-ups spawn during gameplay
+  - 🛡️ **Shield**: 5 seconds of invincibility to pass through obstacles
+  - ⏱️ **Slow Motion**: 3 seconds of reduced game speed for easier dodging
+  - ⭐ **Score Multiplier**: 10 seconds of double points
 - **Scoring System**: Track your high scores and compete on leaderboards
 - **Particle Explosion Effects**: Dramatic explosions when Captain Underpants collides with missiles
 - **Smooth Physics**: Realistic gravity and cape physics with dynamic animations
@@ -27,9 +32,10 @@ The game is inspired by the popular Chrome dinosaur game but with a humorous twi
 - **Animated Ground**: Moving pebbles, stones, and occasional worms for added detail
 
 ### Audio
-- **Sound Effects**: Jump sounds, collision explosions, and score milestone beeps
-- **Web Audio API**: Procedurally generated sounds for performance
+- **Sound Effects**: Jump sounds, collision explosions, score milestone beeps, and power-up collection
+- **Web Audio API**: Procedurally generated sounds for performance and variety
 - **Sound Toggle**: Easily mute/unmute all sound effects
+- **Dynamic Audio**: Different sounds for each power-up type and combo milestone
 
 ### Platform Support
 - **Desktop Controls**: Keyboard support (Space/Arrow Up to jump, Arrow Down/S to duck)
@@ -66,6 +72,11 @@ Avoid oncoming missiles by jumping over or ducking under them. Each obstacle you
 - Watch for environmental changes at score 20-40 (night mode and rain)
 - Use duck for low-flying missiles and jump for higher ones
 - Reach score milestones (every 10 points) to hear a satisfying beep!
+- **Build combos** to maximize your score - each successful dodge increases your multiplier
+- **Collect power-ups** strategically - they appear every 10-15 seconds
+- **Shield power-up** is great when obstacles are clustered together
+- **Slow motion** helps when game speed gets intense at higher scores
+- **Score multiplier** stacks with combo multipliers for massive point gains!
 
 ## Technologies Used
 
@@ -114,8 +125,8 @@ To enable Telegram features, deploy as a Telegram Web App:
 
 Potential future improvements to the game may include:
 
-- **Power-ups**: Invincibility shields, slow-motion, speed boosts, or double-jump abilities
-- **Collectibles**: Coins or stars for bonus points and rewards
+- **Additional Power-ups**: Double-jump, speed boost, or magnet abilities
+- **Collectible Coins**: Persistent currency for unlocking cosmetics
 - **Multiple obstacle types**: Flying enemies, barriers requiring specific actions
 - **Character skins**: Unlock different characters from the Captain Underpants universe
 - **Background music**: Looping soundtrack with dynamic intensity
